@@ -1,0 +1,2278 @@
+/**
+ * 中川石材 業務管理システム - メインアプリケーションスクリプト
+ * UIレンダリング、イベントハンドリング、Chart.js連携、音声入力、権限制御
+ */
+
+class StoneApp {
+  constructor() {
+    this.currentView = 'home';
+    this.fundsSubtab = 'statement'; // 'statement' | 'breakdown' | 'overview'
+    this.taskFilter = 'all'; // 'all' | 'overdue' | 'today' | 'week' | 'completed'
+    this.cashFlowChart = null;
+    this.expenseDonutChart = null;
+    this.speechRecognition = null;
+    this.isRecordingVoice = false;
+
+    // 今日の基準日（日本時間 JST: YYYY-MM-DD）
+    const now = new Date();
+    const jstDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
+    const yyyy = jstDate.getFullYear();
+    const mm = String(jstDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(jstDate.getDate()).padStart(2, '0');
+    this.todayStr = `${yyyy}-${mm}-${dd}`;
+
+    this.init();
+  }
+
+  init() {
+    this.initEventListeners();
+    this.initSpeechRecognition();
+    
+    // ストア変更時の自動再描画
+    window.stoneStore.subscribe(() => {
+      this.render();
+    });
+
+    // 初回レンダリング
+    this.render();
+  }
+
+  // ==============================================================
+  // イベントリスナー設定
+  // ==============================================================
+  initEventListeners() {
+    // 1. タブナビゲーション切り替え（PC・モバイル共通）
+    document.querySelectorAll('.nav-tab-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const view = btn.dataset.view;
+        if (view) this.switchView(view);
+      });
+    });
+
+    // 2. ユーザー切り替えプルダウン（権限制御モック）
+    const userSelector = document.getElementById('userSelector');
+    if (userSelector) {
+      userSelector.value = window.stoneStore.getCurrentUser();
+      userSelector.addEventListener('change', (e) => {
+        window.stoneStore.setCurrentUser(e.target.value);
+        this.showToast(`操作者を「${e.target.options[e.target.selectedIndex].text}」に切り替えました`);
+        this.render();
+      });
+    }
+
+    // 3. 設定ボタン ＆ QRモーダルボタン
+    const btnOpenSettings = document.getElementById('btnOpenSettings');
+    if (btnOpenSettings) {
+      btnOpenSettings.addEventListener('click', () => {
+        this.switchView('settings');
+      });
+    }
+    const btnOpenQrModal = document.getElementById('btnOpenQrModal');
+    if (btnOpenQrModal) {
+      btnOpenQrModal.addEventListener('click', () => {
+        this.updateQrModal();
+        document.getElementById('modalQr')?.classList.remove('hidden');
+      });
+    }
+
+    // 4. 今日の対応 - フィルターボタン
+    document.querySelectorAll('.task-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.task-filter-btn').forEach(b => {
+          b.classList.remove('active', 'bg-blue-600', 'text-white');
+          b.classList.add('text-slate-600');
+        });
+        btn.classList.add('active', 'bg-blue-600', 'text-white');
+        btn.classList.remove('text-slate-600');
+        this.taskFilter = btn.dataset.filter;
+        this.renderTasks();
+      });
+    });
+
+    // 担当者・カテゴリフィルタ
+    const taskAssigneeFilter = document.getElementById('taskAssigneeFilter');
+    if (taskAssigneeFilter) {
+      taskAssigneeFilter.addEventListener('change', () => this.renderTasks());
+    }
+    const taskCategoryFilter = document.getElementById('taskCategoryFilter');
+    if (taskCategoryFilter) {
+      taskCategoryFilter.addEventListener('change', () => this.renderTasks());
+    }
+
+    // 5. タスク追加モーダル
+    const btnOpenAddTaskModal = document.getElementById('btnOpenAddTaskModal');
+    const btnMobileFabAddTask = document.getElementById('btnMobileFabAddTask');
+    if (btnOpenAddTaskModal) btnOpenAddTaskModal.addEventListener('click', () => this.openTaskModal());
+    if (btnMobileFabAddTask) btnMobileFabAddTask.addEventListener('click', () => this.openTaskModal());
+
+    const formTask = document.getElementById('formTask');
+    if (formTask) {
+      formTask.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.handleTaskSubmit();
+      });
+    }
+
+    // 6. 口座残高変更モーダル
+    const btnEditBankBalance = document.getElementById('btnEditBankBalance');
+    if (btnEditBankBalance) {
+      btnEditBankBalance.addEventListener('click', () => this.openBankModal());
+    }
+    const formBank = document.getElementById('formBank');
+    if (formBank) {
+      formBank.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.handleBankSubmit();
+      });
+    }
+
+    // 7. 取引（入出金）モーダル
+    const btnOpenAddTxModal = document.getElementById('btnOpenAddTxModal');
+    const btnOpenAddTxModalStmt = document.getElementById('btnOpenAddTxModalStmt');
+    if (btnOpenAddTxModal) {
+      btnOpenAddTxModal.addEventListener('click', () => this.openTxModal());
+    }
+    if (btnOpenAddTxModalStmt) {
+      btnOpenAddTxModalStmt.addEventListener('click', () => this.openTxModal());
+    }
+    const formTx = document.getElementById('formTx');
+    if (formTx) {
+      formTx.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.handleTxSubmit();
+      });
+    }
+
+    // 区分（入金/支払）変更時に費目プルダウンを連動
+    const txInputType = document.getElementById('txInputType');
+    if (txInputType) {
+      txInputType.addEventListener('change', () => {
+        this.populateTxCategorySelect(txInputType.value);
+      });
+    }
+
+    // 資金管理 サブタブ切り替え
+    document.querySelectorAll('.funds-subtab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const subtab = btn.dataset.subtab;
+        if (subtab) this.switchFundsSubtab(subtab);
+      });
+    });
+
+    // 費目別支出 月セレクター
+    const expenseBreakdownMonthSelect = document.getElementById('expenseBreakdownMonthSelect');
+    if (expenseBreakdownMonthSelect) {
+      expenseBreakdownMonthSelect.addEventListener('change', () => {
+        this.renderExpenseBreakdown();
+      });
+    }
+
+    // キャッシュフロー計算書 期間セレクター
+    const cashflowPeriodSelect = document.getElementById('cashflowPeriodSelect');
+    if (cashflowPeriodSelect) {
+      cashflowPeriodSelect.addEventListener('change', () => {
+        this.renderCashFlowStatementByType();
+      });
+    }
+
+    // 資金繰り表 明細閉じるボタン
+    const btnCloseStmtDetail = document.getElementById('btnCloseStmtDetail');
+    if (btnCloseStmtDetail) {
+      btnCloseStmtDetail.addEventListener('click', () => {
+        document.getElementById('stmtDetailContainer')?.classList.add('hidden');
+      });
+    }
+
+    // 8. 案件モーダル
+    const btnOpenAddProjectModal = document.getElementById('btnOpenAddProjectModal');
+    if (btnOpenAddProjectModal) {
+      btnOpenAddProjectModal.addEventListener('click', () => this.openProjectModal());
+    }
+    const formProject = document.getElementById('formProject');
+    if (formProject) {
+      formProject.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.handleProjectSubmit();
+      });
+    }
+
+    // 9. 弥生会計進捗モーダル
+    const btnOpenYayoiModal = document.getElementById('btnOpenYayoiModal');
+    if (btnOpenYayoiModal) {
+      btnOpenYayoiModal.addEventListener('click', () => {
+        document.getElementById('modalYayoi').classList.remove('hidden');
+      });
+    }
+    const formYayoi = document.getElementById('formYayoi');
+    if (formYayoi) {
+      formYayoi.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.handleYayoiSubmit();
+      });
+    }
+
+    // 10. クイック作業記録ボタン群
+    document.querySelectorAll('.quick-log-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const action = btn.dataset.action;
+        const category = btn.dataset.category;
+        window.stoneStore.addActivityLog({
+          action: action,
+          category: category,
+          details: 'クイック記録ボタンより記録'
+        });
+        this.showToast(`「${action}」を作業履歴に記録しました`);
+      });
+    });
+
+    // 11. 作業メモフォーム送信
+    const formAddActivityLog = document.getElementById('formAddActivityLog');
+    if (formAddActivityLog) {
+      formAddActivityLog.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const actionInput = document.getElementById('logActionInput');
+        const detailsInput = document.getElementById('logDetailsInput');
+        const categoryInput = document.getElementById('logCategoryInput');
+
+        if (!actionInput.value.trim()) return;
+
+        window.stoneStore.addActivityLog({
+          action: actionInput.value.trim(),
+          details: detailsInput.value.trim(),
+          category: categoryInput.value
+        });
+
+        actionInput.value = '';
+        detailsInput.value = '';
+        this.showToast('作業履歴を記録しました');
+      });
+    }
+
+    // 12. 履歴検索
+    const logSearchInput = document.getElementById('logSearchInput');
+    if (logSearchInput) {
+      logSearchInput.addEventListener('input', () => this.renderActivityLogs());
+    }
+
+    // 13. モーダル閉じるボタン共通
+    document.querySelectorAll('.modal-close-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.modal-backdrop').forEach(m => m.classList.add('hidden'));
+      });
+    });
+
+    // 14. 設定（リセット、エクスポート、インポート）
+    const btnResetData = document.getElementById('btnResetData');
+    if (btnResetData) {
+      btnResetData.addEventListener('click', () => {
+        if (confirm('すべての登録データを初期のサンプルデータに戻しますか？')) {
+          window.stoneStore.resetToSampleData();
+          this.showToast('データを初期サンプルに戻しました');
+        }
+      });
+    }
+
+    const btnExportData = document.getElementById('btnExportData');
+    if (btnExportData) {
+      btnExportData.addEventListener('click', () => {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(window.stoneStore.exportData());
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", `nakagawa_stone_backup_${new Date().toISOString().slice(0,10)}.json`);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+        this.showToast('バックアップデータを書き出しました');
+      });
+    }
+
+    const importFileInput = document.getElementById('importFileInput');
+    if (importFileInput) {
+      importFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const res = window.stoneStore.importData(event.target.result);
+          if (res.success) {
+            this.showToast('データを正常に復元しました');
+          } else {
+            alert('復元エラー: ' + res.error);
+          }
+        };
+        reader.readAsText(file);
+      });
+    }
+
+    // 15. メールからタスク作成モーダル内ボタン
+    const btnCreateTaskFromModalMail = document.getElementById('btnCreateTaskFromModalMail');
+    if (btnCreateTaskFromModalMail) {
+      btnCreateTaskFromModalMail.addEventListener('click', () => {
+        if (this.currentModalMailId) {
+          const task = window.stoneStore.createTaskFromEmail(this.currentModalMailId);
+          document.getElementById('modalEmailDetail').classList.add('hidden');
+          this.showToast(`メールから「${task.title}」を今日の対応に追加しました！`);
+          this.switchView('home');
+        }
+      });
+    }
+  }
+
+  // QRコードのURL動的生成
+  updateQrModal() {
+    const qrImg = document.getElementById('qrCodeImg');
+    const qrText = document.getElementById('qrCodeText');
+    let targetUrl = 'http://192.168.3.71:8080';
+    if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+      if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        targetUrl = window.location.origin;
+      }
+    }
+    if (qrImg) {
+      qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(targetUrl)}`;
+    }
+    if (qrText) {
+      qrText.textContent = targetUrl;
+    }
+  }
+
+  // ==============================================================
+  // 音声入力（Web Speech API）
+  // ==============================================================
+  initSpeechRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const btnVoice = document.getElementById('btnVoiceInput');
+    const statusText = document.getElementById('voiceStatusText');
+
+    if (!SpeechRecognition) {
+      if (btnVoice) {
+        btnVoice.addEventListener('click', () => {
+          alert('お使いのブラウザでは直接の音声マイクAPIが制限されていますが、スマホのキーボードに付いているマイクアイコン（音声入力）から入力欄に直接お話しいただけます！');
+        });
+      }
+      return;
+    }
+
+    this.speechRecognition = new SpeechRecognition();
+    this.speechRecognition.lang = 'ja-JP';
+    this.speechRecognition.continuous = false;
+    this.speechRecognition.interimResults = false;
+
+    this.speechRecognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      const actionInput = document.getElementById('logActionInput');
+      if (actionInput) {
+        actionInput.value = (actionInput.value ? actionInput.value + ' ' : '') + transcript;
+      }
+      this.showToast(`音声認識: 「${transcript}」`);
+    };
+
+    this.speechRecognition.onerror = (event) => {
+      console.warn('Speech recognition error:', event.error);
+      this.isRecordingVoice = false;
+      this.updateVoiceButtonUI();
+    };
+
+    this.speechRecognition.onend = () => {
+      this.isRecordingVoice = false;
+      this.updateVoiceButtonUI();
+    };
+
+    if (btnVoice) {
+      btnVoice.addEventListener('click', () => {
+        if (!this.isRecordingVoice) {
+          try {
+            this.speechRecognition.start();
+            this.isRecordingVoice = true;
+            this.updateVoiceButtonUI();
+          } catch (e) {
+            console.error(e);
+          }
+        } else {
+          this.speechRecognition.stop();
+          this.isRecordingVoice = false;
+          this.updateVoiceButtonUI();
+        }
+      });
+    }
+  }
+
+  updateVoiceButtonUI() {
+    const btnVoice = document.getElementById('btnVoiceInput');
+    const statusText = document.getElementById('voiceStatusText');
+    if (!btnVoice) return;
+
+    if (this.isRecordingVoice) {
+      btnVoice.classList.add('mic-listening');
+      if (statusText) statusText.textContent = '聞いています...';
+    } else {
+      btnVoice.classList.remove('mic-listening');
+      if (statusText) statusText.textContent = '音声入力';
+    }
+  }
+
+  // ==============================================================
+  // 画面（View）の切り替え
+  // ==============================================================
+  switchView(viewName) {
+    this.currentView = viewName;
+
+    // パネル表示切り替え
+    document.querySelectorAll('.view-panel').forEach(panel => {
+      panel.classList.add('hidden');
+    });
+    const activePanel = document.getElementById(`view-${viewName}`);
+    if (activePanel) activePanel.classList.remove('hidden');
+
+    // ナビゲーションのアクティブスタイル更新
+    document.querySelectorAll('.nav-tab-btn').forEach(btn => {
+      if (btn.dataset.view === viewName) {
+        btn.classList.add('active', 'text-blue-600', 'bg-blue-50/50');
+        btn.classList.remove('text-slate-500', 'text-slate-600');
+      } else {
+        btn.classList.remove('active', 'text-blue-600', 'bg-blue-50/50');
+        btn.classList.add('text-slate-500');
+      }
+    });
+
+    // 画面固有の再描画
+    if (viewName === 'funds') {
+      this.renderFunds();
+    } else if (viewName === 'projects') {
+      this.renderProjects();
+    } else if (viewName === 'logs') {
+      this.renderActivityLogs();
+    } else if (viewName === 'emails') {
+      this.renderEmails();
+    } else if (viewName === 'home') {
+      this.renderTasks();
+    }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ==============================================================
+  // 全体レンダリング
+  // ==============================================================
+  render() {
+    this.checkPermissions();
+    this.renderHeaderAndBadges();
+    
+    // 現在のアクティブビューを再描画
+    if (this.currentView === 'home') this.renderTasks();
+    else if (this.currentView === 'funds') this.renderFunds();
+    else if (this.currentView === 'projects') this.renderProjects();
+    else if (this.currentView === 'logs') this.renderActivityLogs();
+    else if (this.currentView === 'emails') this.renderEmails();
+  }
+
+  // 権限制御の適用
+  checkPermissions() {
+    const canFunds = window.stoneStore.canAccessFunds();
+    const canEmails = window.stoneStore.canAccessEmails();
+
+    // 資金タブ
+    const fundsNotice = document.getElementById('fundsRestrictedNotice');
+    const fundsContent = document.getElementById('fundsContent');
+    if (fundsNotice && fundsContent) {
+      if (!canFunds) {
+        fundsNotice.classList.remove('hidden');
+        fundsContent.classList.add('hidden');
+      } else {
+        fundsNotice.classList.add('hidden');
+        fundsContent.classList.remove('hidden');
+      }
+    }
+
+    // メールタブ
+    const emailsNotice = document.getElementById('emailsRestrictedNotice');
+    const emailsContent = document.getElementById('emailsContent');
+    if (emailsNotice && emailsContent) {
+      if (!canEmails) {
+        emailsNotice.classList.remove('hidden');
+        emailsContent.classList.add('hidden');
+      } else {
+        emailsNotice.classList.add('hidden');
+        emailsContent.classList.remove('hidden');
+      }
+    }
+
+    // サイドバー＆ボトムバーの視覚的ロック
+    const sideNavFunds = document.getElementById('sideNavFunds');
+    const bottomNavFunds = document.getElementById('bottomNavFunds');
+    const sideNavEmails = document.getElementById('sideNavEmails');
+    const bottomNavEmails = document.getElementById('bottomNavEmails');
+
+    if (!canFunds) {
+      if (sideNavFunds) sideNavFunds.classList.add('opacity-40');
+      if (bottomNavFunds) bottomNavFunds.classList.add('opacity-40');
+    } else {
+      if (sideNavFunds) sideNavFunds.classList.remove('opacity-40');
+      if (bottomNavFunds) bottomNavFunds.classList.remove('opacity-40');
+    }
+
+    if (!canEmails) {
+      if (sideNavEmails) sideNavEmails.classList.add('opacity-40');
+      if (bottomNavEmails) bottomNavEmails.classList.add('opacity-40');
+    } else {
+      if (sideNavEmails) sideNavEmails.classList.remove('opacity-40');
+      if (bottomNavEmails) bottomNavEmails.classList.remove('opacity-40');
+    }
+  }
+
+  // ヘッダー＆バッジ集計の更新
+  renderHeaderAndBadges() {
+    const tasks = window.stoneStore.getTasks();
+    const emails = window.stoneStore.getEmails();
+
+    let overdueCount = 0;
+    let todayCount = 0;
+    let weekCount = 0;
+
+    const today = this.todayStr;
+    const weekAhead = new Date(today);
+    weekAhead.setDate(weekAhead.getDate() + 7);
+    const weekAheadStr = weekAhead.toISOString().slice(0, 10);
+
+    tasks.forEach(t => {
+      if (t.status === 'pending') {
+        if (t.dueDate < today) {
+          overdueCount++;
+        } else if (t.dueDate === today) {
+          todayCount++;
+        } else if (t.dueDate <= weekAheadStr) {
+          weekCount++;
+        }
+      }
+    });
+
+    // カウント表示
+    const elOverdue = document.getElementById('statCountOverdue');
+    const elToday = document.getElementById('statCountToday');
+    const elWeek = document.getElementById('statCountWeek');
+    if (elOverdue) elOverdue.textContent = overdueCount;
+    if (elToday) elToday.textContent = todayCount;
+    if (elWeek) elWeek.textContent = weekCount;
+
+    // サイドバー＆モバイルバッジ
+    const badgeOverdueSidebar = document.getElementById('badgeOverdueSidebar');
+    const badgeOverdueMobile = document.getElementById('badgeOverdueMobile');
+    if (badgeOverdueSidebar) {
+      badgeOverdueSidebar.textContent = overdueCount;
+      badgeOverdueSidebar.classList.toggle('hidden', overdueCount === 0);
+    }
+    if (badgeOverdueMobile) {
+      badgeOverdueMobile.textContent = overdueCount;
+      badgeOverdueMobile.classList.toggle('hidden', overdueCount === 0);
+    }
+
+    // メール未対応バッジ
+    let unprocessedEmailsCount = 0;
+    emails.forEach(m => {
+      if (!m.isProcessed && !m.isNoticeOrAd) unprocessedEmailsCount++;
+    });
+    const badgeMailSidebar = document.getElementById('badgeUnprocessedEmailsSidebar');
+    const badgeMailMobile = document.getElementById('badgeUnprocessedEmailsMobile');
+    if (badgeMailSidebar) {
+      badgeMailSidebar.textContent = unprocessedEmailsCount;
+      badgeMailSidebar.classList.toggle('hidden', unprocessedEmailsCount === 0);
+    }
+    if (badgeMailMobile) {
+      badgeMailMobile.textContent = unprocessedEmailsCount;
+      badgeMailMobile.classList.toggle('hidden', unprocessedEmailsCount === 0);
+    }
+  }
+
+  // ==============================================================
+  // 1. 今日の対応（タスク）レンダリング
+  // ==============================================================
+  setTaskFilter(filter) {
+    this.taskFilter = filter;
+    document.querySelectorAll('.task-filter-btn').forEach(btn => {
+      if (btn.dataset.filter === filter) {
+        btn.classList.add('active', 'bg-blue-600', 'text-white');
+        btn.classList.remove('text-slate-600');
+      } else {
+        btn.classList.remove('active', 'bg-blue-600', 'text-white');
+        btn.classList.add('text-slate-600');
+      }
+    });
+    this.renderTasks();
+  }
+
+  renderTasks() {
+    const container = document.getElementById('taskListContainer');
+    if (!container) return;
+
+    let tasks = window.stoneStore.getTasks();
+    const assigneeFilter = document.getElementById('taskAssigneeFilter')?.value || 'all';
+    const categoryFilter = document.getElementById('taskCategoryFilter')?.value || 'all';
+
+    const today = this.todayStr;
+    const weekAhead = new Date(today);
+    weekAhead.setDate(weekAhead.getDate() + 7);
+    const weekAheadStr = weekAhead.toISOString().slice(0, 10);
+
+    // フィルタリング
+    let filtered = tasks.filter(t => {
+      // 担当者
+      if (assigneeFilter !== 'all' && t.assignee !== assigneeFilter) return false;
+      // カテゴリ
+      if (categoryFilter !== 'all' && t.category !== categoryFilter) return false;
+
+      // 状態・期限フィルタ
+      if (this.taskFilter === 'overdue') {
+        return t.status === 'pending' && t.dueDate < today;
+      } else if (this.taskFilter === 'today') {
+        return t.status === 'pending' && t.dueDate === today;
+      } else if (this.taskFilter === 'week') {
+        return t.status === 'pending' && t.dueDate >= today && t.dueDate <= weekAheadStr;
+      } else if (this.taskFilter === 'completed') {
+        return t.status === 'completed';
+      }
+      return true; // 'all'
+    });
+
+    if (filtered.length === 0) {
+      container.innerHTML = `
+        <div class="bg-white rounded-xl p-8 text-center text-slate-400 border border-dashed border-slate-200">
+          <svg class="w-10 h-10 mx-auto text-slate-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          <p class="text-xs font-semibold">該当する対応タスクはありません</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">漏れなく順調に進んでいます！</p>
+        </div>
+      `;
+      return;
+    }
+
+    // カテゴリごとの配色バッジマップ
+    const categoryColors = {
+      '支払い': 'bg-rose-100 text-rose-800 border-rose-200',
+      '返信': 'bg-sky-100 text-sky-800 border-sky-200',
+      '工事準備': 'bg-emerald-100 text-emerald-800 border-emerald-200',
+      '経理作業': 'bg-amber-100 text-amber-800 border-amber-200',
+      'その他': 'bg-slate-100 text-slate-700 border-slate-200'
+    };
+
+    const projects = window.stoneStore.getProjects();
+    const projectMap = {};
+    projects.forEach(p => projectMap[p.id] = p.name);
+
+    container.innerHTML = filtered.map(t => {
+      const isCompleted = t.status === 'completed';
+      const isOverdue = !isCompleted && t.dueDate < today;
+      const isToday = !isCompleted && t.dueDate === today;
+
+      // 期限バッジ
+      let dueBadgeHtml = '';
+      if (isCompleted) {
+        dueBadgeHtml = `<span class="text-xs text-slate-400 font-medium">完了済 (${t.completedAt || ''})</span>`;
+      } else if (isOverdue) {
+        dueBadgeHtml = `
+          <span class="inline-flex items-center text-xs font-extrabold text-red-600 bg-red-100 px-2 py-0.5 rounded-full border border-red-300 pulse-warning">
+            ⚠️ 期限超過 (${t.dueDate})
+          </span>
+        `;
+      } else if (isToday) {
+        dueBadgeHtml = `
+          <span class="inline-flex items-center text-xs font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">
+            本日中 (${t.dueDate})
+          </span>
+        `;
+      } else {
+        dueBadgeHtml = `<span class="text-xs text-slate-500 font-medium">期限: ${t.dueDate}</span>`;
+      }
+
+      const categoryBadge = categoryColors[t.category] || categoryColors['その他'];
+      const projectName = t.projectId ? projectMap[t.projectId] : null;
+
+      return `
+        <div class="bg-white rounded-xl p-3.5 sm:p-4 border ${isOverdue ? 'border-red-300 bg-red-50/20 shadow-sm' : isCompleted ? 'border-slate-200 opacity-60 bg-slate-50/50' : 'border-slate-200 shadow-sm'} transition hover:border-blue-300">
+          <div class="flex items-start gap-3">
+            
+            <!-- 完了チェックボックス（スマホでも押しやすい44pxタッチターゲット） -->
+            <button class="task-toggle-btn mt-0.5 flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-lg border-2 flex items-center justify-center transition touch-target ${isCompleted ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-300 hover:border-blue-500 bg-white'}" data-task-id="${t.id}" title="${isCompleted ? '完了を取り消す' : '完了にする'}">
+              ${isCompleted ? '<svg class="w-4 h-4 sm:w-5 sm:h-5 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>' : ''}
+            </button>
+
+            <!-- タスク情報 -->
+            <div class="flex-1 min-w-0">
+              
+              <!-- 上部メタ情報（種別・担当・期限） -->
+              <div class="flex flex-wrap items-center gap-1.5 mb-1">
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded border ${categoryBadge}">${t.category}</span>
+                <span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">担当: ${t.assignee}</span>
+                ${dueBadgeHtml}
+                ${t.amount ? `<span class="text-xs font-bold text-rose-700 ml-auto">¥${t.amount.toLocaleString()}</span>` : ''}
+              </div>
+
+              <!-- タスクタイトル -->
+              <h3 class="text-xs sm:text-sm font-bold text-slate-900 ${isCompleted ? 'line-through text-slate-400' : ''} leading-snug">
+                ${this.escapeHtml(t.title)}
+              </h3>
+
+              <!-- 次にすること（目立つ枠組み） -->
+              ${t.nextAction ? `
+                <div class="mt-2 bg-slate-50 p-2 rounded-lg border border-slate-200/80 flex items-start space-x-1.5 text-xs text-slate-700">
+                  <span class="font-bold text-blue-700 flex-shrink-0">👉 次にすること:</span>
+                  <span class="flex-1 leading-relaxed">${this.escapeHtml(t.nextAction)}</span>
+                </div>
+              ` : ''}
+
+              <!-- 関連案件リンク -->
+              ${projectName ? `
+                <div class="mt-1.5 text-[11px] text-indigo-700 flex items-center cursor-pointer hover:underline" onclick="app.openProjectDetailModal('${t.projectId}')">
+                  <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                  <span>関連案件: ${this.escapeHtml(projectName)}</span>
+                </div>
+              ` : ''}
+
+            </div>
+
+            <!-- アクションメニュー（編集・削除） -->
+            <div class="flex items-center space-x-1 flex-shrink-0">
+              <button class="task-edit-btn p-1.5 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 transition" data-task-id="${t.id}" title="編集">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+              </button>
+              <button class="task-delete-btn p-1.5 text-slate-400 hover:text-red-600 rounded hover:bg-slate-100 transition" data-task-id="${t.id}" title="削除">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // タスク完了トグルイベント
+    container.querySelectorAll('.task-toggle-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.taskId;
+        const updated = window.stoneStore.toggleTaskStatus(id);
+        if (updated) {
+          if (updated.status === 'completed') {
+            this.showToast(`「${updated.title}」を完了にしました！`);
+          } else {
+            this.showToast(`「${updated.title}」の完了を取り消しました`);
+          }
+        }
+      });
+    });
+
+    // タスク編集イベント
+    container.querySelectorAll('.task-edit-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.taskId;
+        const task = window.stoneStore.getTasks().find(t => t.id === id);
+        if (task) this.openTaskModal(task);
+      });
+    });
+
+    // タスク削除イベント
+    container.querySelectorAll('.task-delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.taskId;
+        if (confirm('この対応タスクを削除してもよろしいですか？')) {
+          window.stoneStore.deleteTask(id);
+          this.showToast('タスクを削除しました');
+        }
+      });
+    });
+  }
+
+  openTaskModal(task = null) {
+    const modal = document.getElementById('modalTask');
+    const form = document.getElementById('formTask');
+    const titleEl = document.getElementById('modalTaskTitle');
+    const projectSelect = document.getElementById('taskInputProject');
+
+    // 案件プルダウンの生成
+    const projects = window.stoneStore.getProjects();
+    projectSelect.innerHTML = '<option value="">なし（単独作業）</option>' + 
+      projects.map(p => `<option value="${p.id}">${this.escapeHtml(p.name)}</option>`).join('');
+
+    if (task) {
+      titleEl.textContent = '対応・タスクの編集';
+      document.getElementById('taskEditId').value = task.id;
+      document.getElementById('taskInputTitle').value = task.title;
+      document.getElementById('taskInputCategory').value = task.category;
+      document.getElementById('taskInputAssignee').value = task.assignee;
+      document.getElementById('taskInputDueDate').value = task.dueDate;
+      document.getElementById('taskInputProject').value = task.projectId || '';
+      document.getElementById('taskInputNextAction').value = task.nextAction || '';
+    } else {
+      titleEl.textContent = '今日の対応・タスク追加';
+      form.reset();
+      document.getElementById('taskEditId').value = '';
+      document.getElementById('taskInputDueDate').value = this.todayStr;
+      document.getElementById('taskInputAssignee').value = window.stoneStore.getCurrentUserLabel();
+    }
+
+    modal.classList.remove('hidden');
+  }
+
+  handleTaskSubmit() {
+    const id = document.getElementById('taskEditId').value;
+    const taskData = {
+      title: document.getElementById('taskInputTitle').value.trim(),
+      category: document.getElementById('taskInputCategory').value,
+      assignee: document.getElementById('taskInputAssignee').value,
+      dueDate: document.getElementById('taskInputDueDate').value,
+      projectId: document.getElementById('taskInputProject').value || null,
+      nextAction: document.getElementById('taskInputNextAction').value.trim()
+    };
+
+    if (id) {
+      window.stoneStore.updateTask(id, taskData);
+      this.showToast('タスクを更新しました');
+    } else {
+      window.stoneStore.addTask(taskData);
+      this.showToast('新しい対応を追加しました');
+    }
+
+    document.getElementById('modalTask').classList.add('hidden');
+  }
+
+  // ==============================================================
+  // 2. お金の管理（資金繰り表・費目別支出分析・残高シミュレーション）
+  // ==============================================================
+  switchFundsSubtab(subtabKey) {
+    this.fundsSubtab = subtabKey;
+    document.querySelectorAll('.funds-subtab-btn').forEach(btn => {
+      if (btn.dataset.subtab === subtabKey) {
+        btn.classList.add('active', 'bg-blue-600', 'text-white', 'shadow-sm');
+        btn.classList.remove('text-slate-600', 'hover:bg-slate-100');
+      } else {
+        btn.classList.remove('active', 'bg-blue-600', 'text-white', 'shadow-sm');
+        btn.classList.add('text-slate-600', 'hover:bg-slate-100');
+      }
+    });
+
+    document.querySelectorAll('.funds-subpanel').forEach(panel => {
+      panel.classList.add('hidden');
+    });
+    const targetPanel = document.getElementById(`subtab-panel-${subtabKey}`);
+    if (targetPanel) targetPanel.classList.remove('hidden');
+
+    if (subtabKey === 'statement') {
+      this.renderCashFlowStatement();
+    } else if (subtabKey === 'breakdown') {
+      this.renderExpenseBreakdown();
+    } else if (subtabKey === 'profitability') {
+      this.renderProjectProfitability();
+    } else if (subtabKey === 'cashflow') {
+      this.renderCashFlowStatementByType();
+      this.renderDailyCashFlowSchedule();
+    } else if (subtabKey === 'overview') {
+      this.renderFundsOverview();
+    }
+  }
+
+  renderFunds() {
+    if (!window.stoneStore.canAccessFunds()) return;
+    this.switchFundsSubtab(this.fundsSubtab);
+  }
+
+  // --------------------------------------------------------------
+  // 2-A. 本格 月次資金繰り表（マトリクス表）
+  // --------------------------------------------------------------
+  renderCashFlowStatement() {
+    const table = document.getElementById('cashFlowStatementTable');
+    if (!table) return;
+
+    const matrix = window.stoneStore.generateCashFlowMatrix();
+    const months = matrix.targetMonths; // ['2026-10', '2026-11', '2026-12', '2027-01']
+    const mData = matrix.monthData;
+
+    // ヘッダー行
+    let html = `
+      <thead class="bg-slate-800 text-white uppercase text-[11px] tracking-wider">
+        <tr>
+          <th class="py-2.5 px-3 sticky left-0 bg-slate-800 z-10 w-52 min-w-[200px]">科目・費目</th>
+          ${months.map(m => `
+            <th class="py-2.5 px-3 text-right whitespace-nowrap min-w-[105px]">
+              ${m === '2026-10' ? `${m}月 (基準月)` : `${m}月 (予定)`}
+            </th>
+          `).join('')}
+          <th class="py-2.5 px-3 text-right bg-slate-900 font-bold whitespace-nowrap min-w-[110px]">4か月合計</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-200">
+    `;
+
+    // 1. 前月繰越残高行
+    let totalStartBalance = mData[months[0]].startBalance;
+    html += `
+      <tr class="bg-slate-100/90 font-bold text-slate-800 border-b-2 border-slate-300">
+        <td class="py-2.5 px-3 sticky left-0 bg-slate-100/90 z-10">【前月繰越預金残高】</td>
+        ${months.map(m => `
+          <td class="py-2.5 px-3 text-right font-extrabold text-slate-800">
+            ¥${mData[m].startBalance.toLocaleString()}
+          </td>
+        `).join('')}
+        <td class="py-2.5 px-3 text-right bg-slate-200/80 font-bold text-slate-500">-</td>
+      </tr>
+    `;
+
+    // 2. 収入の部
+    html += `
+      <tr class="bg-emerald-50/70 font-bold text-emerald-900 border-t border-b border-emerald-200">
+        <td colspan="${months.length + 2}" class="py-2 px-3 sticky left-0 bg-emerald-50/70 z-10 text-xs">
+          ▼ 【Ⅰ 営業収入の部】
+        </td>
+      </tr>
+    `;
+
+    matrix.incomeRows.forEach(row => {
+      let rowTotal = 0;
+      months.forEach(m => rowTotal += (mData[m].incomes[row.key] || 0));
+
+      html += `
+        <tr class="hover:bg-slate-50 transition">
+          <td class="py-2 px-3 pl-6 text-slate-700 sticky left-0 bg-white z-10">
+            ${row.label}
+          </td>
+          ${months.map(m => {
+            const val = mData[m].incomes[row.key] || 0;
+            return `
+              <td class="py-2 px-3 text-right font-medium text-emerald-700 cursor-pointer hover:bg-emerald-50 hover:underline transition" 
+                  onclick="app.showStatementDetail('${m}', '${row.key}', 'income')" title="明細を表示">
+                ${val > 0 ? `+¥${val.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+              </td>
+            `;
+          }).join('')}
+          <td class="py-2 px-3 text-right font-bold text-emerald-800 bg-slate-50">
+            ${rowTotal > 0 ? `+¥${rowTotal.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+          </td>
+        </tr>
+      `;
+    });
+
+    // 収入合計行
+    let totalIncomeAll = 0;
+    months.forEach(m => totalIncomeAll += mData[m].totalIncome);
+    html += `
+      <tr class="bg-emerald-100/60 font-bold text-emerald-900 border-t border-b-2 border-emerald-300">
+        <td class="py-2.5 px-3 sticky left-0 bg-emerald-100/60 z-10">収入合計（小計）</td>
+        ${months.map(m => `
+          <td class="py-2.5 px-3 text-right font-extrabold text-emerald-800">
+            +¥${mData[m].totalIncome.toLocaleString()}
+          </td>
+        `).join('')}
+        <td class="py-2.5 px-3 text-right font-black text-emerald-900 bg-emerald-100">
+          +¥${totalIncomeAll.toLocaleString()}
+        </td>
+      </tr>
+    `;
+
+    // 3. 支出の部
+    html += `
+      <tr class="bg-rose-50/70 font-bold text-rose-900 border-t border-b border-rose-200">
+        <td colspan="${months.length + 2}" class="py-2 px-3 sticky left-0 bg-rose-50/70 z-10 text-xs">
+          ▼ 【Ⅱ 営業支出の部】
+        </td>
+      </tr>
+    `;
+
+    matrix.expenseGroups.forEach(grp => {
+      html += `
+        <tr class="bg-slate-50/80 font-bold text-slate-700 text-[11px]">
+          <td colspan="${months.length + 2}" class="py-1 px-3 pl-4 sticky left-0 bg-slate-50/80 z-10">
+            ${grp.groupName}
+          </td>
+        </tr>
+      `;
+
+      grp.rows.forEach(row => {
+        let rowTotal = 0;
+        months.forEach(m => rowTotal += (mData[m].expenses[row.key] || 0));
+
+        html += `
+          <tr class="hover:bg-slate-50 transition">
+            <td class="py-2 px-3 pl-6 text-slate-700 sticky left-0 bg-white z-10">
+              ${row.label}
+            </td>
+            ${months.map(m => {
+              const val = mData[m].expenses[row.key] || 0;
+              return `
+                <td class="py-2 px-3 text-right font-medium text-rose-700 cursor-pointer hover:bg-rose-50 hover:underline transition" 
+                    onclick="app.showStatementDetail('${m}', '${row.key}', 'expense')" title="明細を表示">
+                  ${val > 0 ? `-¥${val.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+                </td>
+              `;
+            }).join('')}
+            <td class="py-2 px-3 text-right font-bold text-rose-800 bg-slate-50">
+              ${rowTotal > 0 ? `-¥${rowTotal.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+            </td>
+          </tr>
+        `;
+      });
+    });
+
+    // 支出合計行
+    let totalExpenseAll = 0;
+    months.forEach(m => totalExpenseAll += mData[m].totalExpense);
+    html += `
+      <tr class="bg-rose-100/60 font-bold text-rose-900 border-t border-b-2 border-rose-300">
+        <td class="py-2.5 px-3 sticky left-0 bg-rose-100/60 z-10">支出合計（小計）</td>
+        ${months.map(m => `
+          <td class="py-2.5 px-3 text-right font-extrabold text-rose-800">
+            -¥${mData[m].totalExpense.toLocaleString()}
+          </td>
+        `).join('')}
+        <td class="py-2.5 px-3 text-right font-black text-rose-900 bg-rose-100">
+          -¥${totalExpenseAll.toLocaleString()}
+        </td>
+      </tr>
+    `;
+
+    // 4. 当月収支差額
+    let totalNetAll = totalIncomeAll - totalExpenseAll;
+    html += `
+      <tr class="bg-slate-100 font-bold border-t border-b border-slate-300">
+        <td class="py-2.5 px-3 sticky left-0 bg-slate-100 z-10 text-slate-800">【Ⅲ 当月収支差額】</td>
+        ${months.map(m => {
+          const net = mData[m].netCashFlow;
+          return `
+            <td class="py-2.5 px-3 text-right font-extrabold ${net >= 0 ? 'text-emerald-700' : 'text-rose-700'}">
+              ${net >= 0 ? '+' : ''}¥${net.toLocaleString()}
+            </td>
+          `;
+        }).join('')}
+        <td class="py-2.5 px-3 text-right font-black ${totalNetAll >= 0 ? 'text-emerald-800' : 'text-rose-800'} bg-slate-200">
+          ${totalNetAll >= 0 ? '+' : ''}¥${totalNetAll.toLocaleString()}
+        </td>
+      </tr>
+    `;
+
+    // 5. 月末預金残高（翌月繰越）
+    html += `
+      <tr class="bg-slate-900 text-white font-black border-t-2 border-slate-800">
+        <td class="py-3 px-3 sticky left-0 bg-slate-900 z-10 text-white text-xs">
+          【Ⅳ 月末預金残高（翌月繰越）】
+        </td>
+        ${months.map(m => `
+          <td class="py-3 px-3 text-right font-black text-white text-sm">
+            ¥${mData[m].endBalance.toLocaleString()}
+          </td>
+        `).join('')}
+        <td class="py-3 px-3 text-right font-black text-blue-200 bg-slate-950 text-sm">
+          ¥${mData[months[months.length - 1]].endBalance.toLocaleString()}
+        </td>
+      </tr>
+    `;
+
+    html += `</tbody>`;
+    table.innerHTML = html;
+  }
+
+  // 資金繰り表のセルクリック時の明細表示
+  showStatementDetail(month, categoryKey, type) {
+    const container = document.getElementById('stmtDetailContainer');
+    const titleEl = document.getElementById('stmtDetailTitle');
+    const listEl = document.getElementById('stmtDetailList');
+    if (!container || !titleEl || !listEl) return;
+
+    const txs = window.stoneStore.getTransactions().filter(tx => 
+      tx.date.startsWith(month) && tx.type === type && tx.category === categoryKey
+    );
+
+    titleEl.textContent = `${month}度 【${categoryKey}】の取引明細 (${txs.length}件)`;
+
+    if (txs.length === 0) {
+      listEl.innerHTML = '<div class="text-slate-400">該当する取引データはありません</div>';
+    } else {
+      listEl.innerHTML = txs.map(tx => `
+        <div class="flex items-center justify-between p-2 bg-white rounded border border-slate-200 text-xs">
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-slate-800">${this.escapeHtml(tx.partner)}</span>
+            <span class="text-slate-400 text-[11px]">${tx.date}</span>
+            ${tx.note ? `<span class="text-slate-500 text-[11px] bg-slate-50 px-1 rounded">${this.escapeHtml(tx.note)}</span>` : ''}
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="font-extrabold ${tx.type === 'income' ? 'text-emerald-700' : 'text-rose-700'}">
+              ${tx.type === 'income' ? '+' : '-'}¥${tx.amount.toLocaleString()}
+            </span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded font-bold ${tx.isActual ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 border border-slate-200'}">
+              ${tx.isActual ? '実績' : '予定'}
+            </span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    container.classList.remove('hidden');
+    container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // --------------------------------------------------------------
+  // 2-B. 何に使っているか（費目別支出分析）
+  // --------------------------------------------------------------
+  renderExpenseBreakdown() {
+    const select = document.getElementById('expenseBreakdownMonthSelect');
+    const monthKey = select ? select.value : 'all';
+
+    const breakdown = window.stoneStore.calculateExpenseBreakdown(monthKey);
+    const totalEl = document.getElementById('breakdownTotalAmount');
+    const periodLabel = document.getElementById('breakdownPeriodLabel');
+    const listContainer = document.getElementById('expenseRankingList');
+
+    if (totalEl) totalEl.textContent = `¥${breakdown.totalExpense.toLocaleString()}`;
+    if (periodLabel) {
+      periodLabel.textContent = monthKey === 'all' ? '今後3か月間の支出総額' : `${monthKey}度 支出総額`;
+    }
+
+    if (!listContainer) return;
+
+    if (breakdown.list.length === 0) {
+      listContainer.innerHTML = '<div class="p-6 text-center text-slate-400 text-xs">この期間の支出データはありません</div>';
+      if (this.expenseDonutChart) {
+        this.expenseDonutChart.destroy();
+        this.expenseDonutChart = null;
+      }
+      return;
+    }
+
+    // ランキングリストの生成
+    listContainer.innerHTML = breakdown.list.map((item, index) => {
+      return `
+        <div class="p-2.5 bg-slate-50 hover:bg-white rounded-xl border border-slate-200 transition shadow-sm space-y-1">
+          <div class="flex items-center justify-between text-xs">
+            <div class="flex items-center space-x-2">
+              <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style="background-color: ${item.color}">
+                ${index + 1}
+              </span>
+              <span class="font-bold text-slate-800">${item.name}</span>
+              <span class="text-[10px] text-slate-400">(${item.count}件)</span>
+            </div>
+            <div class="text-right">
+              <span class="font-extrabold text-slate-900">¥${item.amount.toLocaleString()}</span>
+              <span class="ml-1 text-xs font-bold text-blue-600">(${item.percentage}%)</span>
+            </div>
+          </div>
+          <!-- 構成比プログレスバー -->
+          <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+            <div class="h-1.5 rounded-full transition-all duration-500" style="width: ${item.percentage}%; background-color: ${item.color}"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // 固定費 vs 変動費の集計カード更新
+    const fv = window.stoneStore.calculateFixedAndVariableExpenses(monthKey);
+    const fixedAmt = document.getElementById('fixedExpenseAmount');
+    const fixedPct = document.getElementById('fixedExpensePct');
+    const varAmt = document.getElementById('variableExpenseAmount');
+    const varPct = document.getElementById('variableExpensePct');
+
+    if (fixedAmt) fixedAmt.textContent = `¥${fv.fixedTotal.toLocaleString()}`;
+    if (fixedPct) fixedPct.textContent = `${fv.fixedPercentage}%`;
+    if (varAmt) varAmt.textContent = `¥${fv.variableTotal.toLocaleString()}`;
+    if (varPct) varPct.textContent = `${fv.variablePercentage}%`;
+
+    // Chart.js ドーナツチャートの描画
+    this.renderExpenseDonutChart(breakdown.list);
+  }
+
+  renderExpenseDonutChart(items) {
+    const canvas = document.getElementById('expenseDonutChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (this.expenseDonutChart) {
+      this.expenseDonutChart.destroy();
+    }
+
+    const labels = items.map(it => it.key);
+    const data = items.map(it => it.amount);
+    const colors = items.map(it => it.color);
+
+    this.expenseDonutChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: data,
+          backgroundColor: colors,
+          borderWidth: 2,
+          borderColor: '#ffffff'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { boxWidth: 10, font: { size: 10 } }
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const val = ctx.raw || 0;
+                const total = data.reduce((a, b) => a + b, 0);
+                const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+                return ` ${ctx.label}: ¥${val.toLocaleString()} (${pct}%)`;
+              }
+            }
+          }
+        },
+        cutout: '62%'
+      }
+    });
+  }
+
+  // --------------------------------------------------------------
+  // 2-C. 工事・案件別 原価収支＆粗利率（個別原価管理）
+  // --------------------------------------------------------------
+  renderProjectProfitability() {
+    const container = document.getElementById('projectProfitabilityList');
+    if (!container) return;
+
+    const list = window.stoneStore.calculateProjectProfitability();
+
+    if (list.length === 0) {
+      container.innerHTML = '<div class="p-6 text-center text-slate-400 text-xs">登録された工事案件はありません</div>';
+      return;
+    }
+
+    container.innerHTML = list.map(item => {
+      const p = item.project;
+      const margin = parseFloat(item.profitMargin);
+      
+      // 利益率バッジ
+      let marginBadgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+      if (margin < 20) {
+        marginBadgeClass = 'bg-rose-100 text-rose-800 border-rose-300';
+      } else if (margin < 30) {
+        marginBadgeClass = 'bg-amber-100 text-amber-800 border-amber-300';
+      }
+
+      return `
+        <div class="bg-slate-50 hover:bg-white p-4 rounded-xl border border-slate-200 transition shadow-sm space-y-3">
+          <!-- 上部ヘッダー（案件名・粗利率バッジ） -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-2 border-slate-200">
+            <div>
+              <div class="text-[11px] text-slate-400">${p.customerName ? `${this.escapeHtml(p.customerName)} 様` : '施主未定'} | ${this.escapeHtml(p.siteLocation || '')}</div>
+              <h4 class="text-xs sm:text-sm font-bold text-slate-900 mt-0.5 cursor-pointer hover:text-blue-600" onclick="app.openProjectDetailModal('${p.id}')">
+                ${this.escapeHtml(p.name)}
+              </h4>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="text-xs font-black px-2.5 py-1 rounded-full border ${marginBadgeClass}">
+                粗利率: ${item.profitMargin}%
+              </span>
+              <span class="text-xs font-black text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                粗利益: ¥${item.grossProfit.toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          <!-- 金額サマリー（契約金額 vs 原価合計） -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <div class="p-2 bg-white rounded-lg border border-slate-200">
+              <div class="text-[10px] text-slate-400 font-medium">請負・契約金額</div>
+              <div class="text-sm font-black text-slate-900 mt-0.5">¥${item.contractAmount.toLocaleString()}</div>
+            </div>
+            <div class="p-2 bg-white rounded-lg border border-slate-200">
+              <div class="text-[10px] text-rose-600 font-medium">原価合計（支出）</div>
+              <div class="text-sm font-black text-rose-700 mt-0.5">¥${item.totalCost.toLocaleString()}</div>
+            </div>
+            <div class="p-2 bg-white rounded-lg border border-slate-200">
+              <div class="text-[10px] text-emerald-600 font-medium">入金済・予定額</div>
+              <div class="text-sm font-black text-emerald-700 mt-0.5">¥${item.billedAmount.toLocaleString()}</div>
+            </div>
+            <div class="p-2 bg-white rounded-lg border border-slate-200 flex flex-col justify-center">
+              <div class="text-[10px] text-slate-400 font-medium">原価率</div>
+              <div class="text-sm font-bold text-slate-700 mt-0.5">
+                ${item.contractAmount > 0 ? (100 - margin).toFixed(1) : 0}%
+              </div>
+            </div>
+          </div>
+
+          <!-- 原価の費目内訳バー＆リスト -->
+          <div class="space-y-1.5 pt-1">
+            <div class="text-[11px] font-bold text-slate-700 flex items-center justify-between">
+              <span>原価の内訳明細（何にいくら使ったか）:</span>
+              <span class="text-[10px] text-slate-400">${item.costItems.length}件の支払予定・実績</span>
+            </div>
+            
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px]">
+              <div class="bg-blue-50/70 p-1.5 rounded border border-blue-200 flex justify-between">
+                <span class="text-blue-900 font-medium">石材仕入:</span>
+                <span class="font-bold text-blue-950">¥${item.stoneCost.toLocaleString()}</span>
+              </div>
+              <div class="bg-sky-50/70 p-1.5 rounded border border-sky-200 flex justify-between">
+                <span class="text-sky-900 font-medium">生コン・建材:</span>
+                <span class="font-bold text-sky-950">¥${item.materialCost.toLocaleString()}</span>
+              </div>
+              <div class="bg-indigo-50/70 p-1.5 rounded border border-indigo-200 flex justify-between">
+                <span class="text-indigo-900 font-medium">重機リース:</span>
+                <span class="font-bold text-indigo-950">¥${item.machineryCost.toLocaleString()}</span>
+              </div>
+              <div class="bg-slate-100 p-1.5 rounded border border-slate-200 flex justify-between">
+                <span class="text-slate-700 font-medium">外注・その他:</span>
+                <span class="font-bold text-slate-900">¥${item.otherCost.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      `;
+    }).join('');
+  }
+
+  // --------------------------------------------------------------
+  // 2-D. キャッシュフロー計算書（営業CF・財務CF）
+  // --------------------------------------------------------------
+  renderCashFlowStatementByType() {
+    const select = document.getElementById('cashflowPeriodSelect');
+    const period = select ? select.value : 'all';
+
+    const cf = window.stoneStore.calculateCashFlowStatementByType(period);
+
+    const opVal = document.getElementById('cfOperatingVal');
+    const finVal = document.getElementById('cfFinancingVal');
+    const netVal = document.getElementById('cfNetVal');
+    const safetyBadge = document.getElementById('cfSafetyBadge');
+
+    if (opVal) opVal.textContent = `${cf.operatingCF >= 0 ? '+' : ''}¥${cf.operatingCF.toLocaleString()}`;
+    if (finVal) finVal.textContent = `¥${cf.financingCF.toLocaleString()}`;
+    if (netVal) netVal.textContent = `${cf.netCF >= 0 ? '+' : ''}¥${cf.netCF.toLocaleString()}`;
+
+    if (safetyBadge) {
+      if (cf.isPositive) {
+        safetyBadge.className = 'text-[11px] text-emerald-300 mt-0.5 font-bold flex items-center';
+        safetyBadge.innerHTML = '✅ 本業の現金収入で借入返済を賄えています（健全）';
+      } else {
+        safetyBadge.className = 'text-[11px] text-rose-300 mt-0.5 font-bold flex items-center';
+        safetyBadge.innerHTML = '⚠️ 注意: 本業CFが返済額を下回っています（手元資金取崩し）';
+      }
+    }
+  }
+
+  // --------------------------------------------------------------
+  // 2-E. 日繰り表（日別・支払集中日カレンダー）
+  // --------------------------------------------------------------
+  renderDailyCashFlowSchedule() {
+    const tbody = document.getElementById('dailyCashFlowTableBody');
+    if (!tbody) return;
+
+    const list = window.stoneStore.calculateDailyCashFlowSchedule();
+
+    if (list.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-400 text-xs">基準日以降の入出金予定はありません</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = list.map(item => {
+      // バッジの判定
+      let badgeHtml = '';
+      if (item.isPayday) {
+        badgeHtml = '<span class="bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-300">給料日</span>';
+      } else if (item.isLoanDay) {
+        badgeHtml = '<span class="bg-purple-100 text-purple-900 px-1.5 py-0.5 rounded text-[10px] font-bold border border-purple-300">公庫引落</span>';
+      } else if (item.isMonthEnd) {
+        badgeHtml = '<span class="bg-rose-100 text-rose-900 px-1.5 py-0.5 rounded text-[10px] font-bold border border-rose-300">月末振込</span>';
+      } else if (item.isHighOutflow) {
+        badgeHtml = '<span class="bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded text-[10px] font-medium border border-rose-200">大型出金</span>';
+      } else {
+        badgeHtml = '<span class="text-slate-400 text-[10px]">通常</span>';
+      }
+
+      return `
+        <tr class="hover:bg-slate-50 transition ${item.isPayday || item.isMonthEnd ? 'bg-amber-50/20' : ''}">
+          <td class="py-2.5 px-3 font-bold text-slate-800 whitespace-nowrap">${item.date}</td>
+          <td class="py-2.5 px-2 whitespace-nowrap">${badgeHtml}</td>
+          <td class="py-2.5 px-3 text-right font-bold text-emerald-700 whitespace-nowrap">
+            ${item.income > 0 ? `+¥${item.income.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+          </td>
+          <td class="py-2.5 px-3 text-right font-bold text-rose-700 whitespace-nowrap">
+            ${item.expense > 0 ? `-¥${item.expense.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+          </td>
+          <td class="py-2.5 px-3 text-right font-extrabold whitespace-nowrap ${item.net >= 0 ? 'text-emerald-700' : 'text-rose-700'}">
+            ${item.net >= 0 ? '+' : ''}¥${item.net.toLocaleString()}
+          </td>
+          <td class="py-2.5 px-3 text-right font-black text-slate-900 whitespace-nowrap bg-slate-50/70">
+            ¥${item.balance.toLocaleString()}
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // --------------------------------------------------------------
+  // 2-C. 従来の残高推移・未入金・全取引明細
+  // --------------------------------------------------------------
+  renderFundsOverview() {
+    const bank = window.stoneStore.getBankAccount();
+    const sim = window.stoneStore.calculateCashFlowSimulation();
+
+    // 基準日残高表示
+    document.getElementById('bankBaseDateDisplay').textContent = `基準日: ${bank.baseDate}`;
+    document.getElementById('bankBaseBalanceDisplay').textContent = `¥${bank.baseBalance.toLocaleString()}`;
+    document.getElementById('bankNameDisplay').textContent = bank.bankName;
+
+    // サマリー表示
+    const summaryUnreceived = document.getElementById('summaryUnreceived');
+    const summaryUnpaid = document.getElementById('summaryUnpaid');
+    const summaryNet = document.getElementById('summaryNetChange');
+    const finalBalance = document.getElementById('projectedFinalBalance');
+    const minAlert = document.getElementById('minBalanceAlert');
+
+    if (summaryUnreceived) summaryUnreceived.textContent = `+¥${sim.totalUnreceived.toLocaleString()}`;
+    if (summaryUnpaid) summaryUnpaid.textContent = `-¥${sim.totalUnpaid.toLocaleString()}`;
+    
+    const net = sim.totalUnreceived - sim.totalUnpaid;
+    if (summaryNet) {
+      summaryNet.textContent = `${net >= 0 ? '+' : ''}¥${net.toLocaleString()}`;
+      summaryNet.className = `font-bold ${net >= 0 ? 'text-emerald-700' : 'text-rose-700'}`;
+    }
+
+    if (finalBalance) {
+      finalBalance.textContent = `¥${sim.finalProjectedBalance.toLocaleString()}`;
+    }
+
+    // 最低残高警告
+    if (minAlert) {
+      if (sim.minBalance < 1000000) {
+        minAlert.className = 'mt-2 pt-2 border-t border-red-500/50 text-[11px] text-red-300 flex items-center font-bold';
+        minAlert.innerHTML = `⚠️ 警告: ${sim.minDate}に最低残高 ¥${sim.minBalance.toLocaleString()} の見込み（資金ショート注意）`;
+      } else {
+        minAlert.className = 'mt-2 pt-2 border-t border-slate-800/80 text-[11px] text-emerald-300 flex items-center';
+        minAlert.innerHTML = `✅ 期間中の最低残高も ¥${sim.minBalance.toLocaleString()} (${sim.minDate}) を維持できる見通しです`;
+      }
+    }
+
+    // 月別集計サマリー表
+    const monthlyContainer = document.getElementById('monthlySummaryContainer');
+    if (monthlyContainer) {
+      monthlyContainer.innerHTML = sim.monthlySummary.map(m => {
+        const netPositive = m.net >= 0;
+        return `
+          <div class="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+            <div class="flex justify-between items-center font-bold text-slate-800 mb-1">
+              <span>${m.month}月度</span>
+              <span class="${netPositive ? 'text-emerald-700' : 'text-rose-700'}">${netPositive ? '+' : ''}¥${m.net.toLocaleString()}</span>
+            </div>
+            <div class="flex justify-between text-[11px] text-slate-500">
+              <span>入金: <strong class="text-emerald-600">+¥${m.income.toLocaleString()}</strong></span>
+              <span>支払: <strong class="text-rose-600">-¥${m.expense.toLocaleString()}</strong></span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Chart.js 残高推移グラフ
+    this.renderCashFlowChart(sim.timeline);
+    this.renderUnreceivedList();
+    this.renderUnpaidList();
+    this.renderTransactionsTable();
+  }
+
+  // 費目（カテゴリ）プルダウンの動的生成
+  populateTxCategorySelect(type, selectedValue = '') {
+    const select = document.getElementById('txInputCategory');
+    if (!select) return;
+
+    if (type === 'income') {
+      select.innerHTML = `
+        <optgroup label="工事売上・収入">
+          <option value="墓石新設代">墓所新設工事代（着工・中間・完工）</option>
+          <option value="改修・補修代">墓所改修・補修工事代</option>
+          <option value="戒名彫刻・納骨">戒名追加彫刻・納骨料</option>
+          <option value="墓じまい代">墓じまい・更地返還工事代</option>
+          <option value="その他収入">その他売上・雑収入</option>
+        </optgroup>
+      `;
+    } else {
+      select.innerHTML = `
+        <optgroup label="原価・仕入・工事費">
+          <option value="石材仕入">石材仕入代（墓石・外柵・納骨部材）</option>
+          <option value="建材仕入">基礎建材費（生コン・セメント・砕石）</option>
+          <option value="重機リース">重機・クレーン・運搬費</option>
+          <option value="外注加工">字彫り・加工外注費</option>
+        </optgroup>
+        <optgroup label="人件費">
+          <option value="給与手当">給与手当・専従者給与・賞与</option>
+        </optgroup>
+        <optgroup label="固定費・現場経費">
+          <option value="車両・燃料">車両費・軽油代・高速代</option>
+          <option value="消耗品・工具">消耗品・切削砥石・ゴム等</option>
+          <option value="損害保険料">損害保険料（車両・請負賠償）</option>
+          <option value="通信・光熱費">水道光熱・事務所通信費</option>
+        </optgroup>
+        <optgroup label="財務・税務">
+          <option value="借入返済">借入金返済（公庫・地銀元金）</option>
+          <option value="税金・積立">租税公課・消費税積立</option>
+          <option value="その他経費">その他雑費・予備費</option>
+        </optgroup>
+      `;
+    }
+
+    if (selectedValue) {
+      select.value = selectedValue;
+    }
+  }
+
+  openBankModal() {
+    const bank = window.stoneStore.getBankAccount();
+    document.getElementById('bankInputBaseDate').value = bank.baseDate;
+    document.getElementById('bankInputBaseBalance').value = bank.baseBalance;
+    document.getElementById('bankInputBankName').value = bank.bankName;
+    document.getElementById('modalBank').classList.remove('hidden');
+  }
+
+  handleBankSubmit() {
+    const baseDate = document.getElementById('bankInputBaseDate').value;
+    const baseBalance = document.getElementById('bankInputBaseBalance').value;
+    const bankName = document.getElementById('bankInputBankName').value.trim();
+
+    window.stoneStore.updateBankAccount(baseDate, baseBalance, bankName);
+    this.showToast('口座基準日と残高を更新しました');
+    document.getElementById('modalBank').classList.add('hidden');
+  }
+
+  openTxModal(tx = null) {
+    const modal = document.getElementById('modalTx');
+    const form = document.getElementById('formTx');
+    const titleEl = document.getElementById('modalTxTitle');
+    const projectSelect = document.getElementById('txInputProject');
+
+    // 案件プルダウン
+    const projects = window.stoneStore.getProjects();
+    projectSelect.innerHTML = '<option value="">なし（共通経費・単発）</option>' + 
+      projects.map(p => `<option value="${p.id}">${this.escapeHtml(p.name)}</option>`).join('');
+
+    if (tx) {
+      titleEl.textContent = '入金・支払予定の編集';
+      document.getElementById('txEditId').value = tx.id;
+      document.getElementById('txInputType').value = tx.type;
+      this.populateTxCategorySelect(tx.type, tx.category);
+      document.getElementById('txInputDate').value = tx.date;
+      document.getElementById('txInputPartner').value = tx.partner;
+      document.getElementById('txInputAmount').value = tx.amount;
+      document.getElementById('txInputProject').value = tx.projectId || '';
+      document.getElementById('txInputIsActual').value = tx.isActual ? 'true' : 'false';
+      document.getElementById('txInputNote').value = tx.note || '';
+    } else {
+      titleEl.textContent = '入金・支払予定の登録';
+      form.reset();
+      document.getElementById('txEditId').value = '';
+      document.getElementById('txInputType').value = 'expense';
+      this.populateTxCategorySelect('expense');
+      document.getElementById('txInputDate').value = this.todayStr;
+    }
+
+    modal.classList.remove('hidden');
+  }
+
+  handleTxSubmit() {
+    const id = document.getElementById('txEditId').value;
+    const txData = {
+      type: document.getElementById('txInputType').value,
+      date: document.getElementById('txInputDate').value,
+      partner: document.getElementById('txInputPartner').value.trim(),
+      amount: document.getElementById('txInputAmount').value,
+      category: document.getElementById('txInputCategory').value,
+      projectId: document.getElementById('txInputProject').value || null,
+      isActual: document.getElementById('txInputIsActual').value === 'true',
+      note: document.getElementById('txInputNote').value.trim()
+    };
+
+    if (id) {
+      window.stoneStore.updateTransaction(id, txData);
+      this.showToast('入出金レコードを更新しました');
+    } else {
+      window.stoneStore.addTransaction(txData);
+      this.showToast('入出金予定を登録しました');
+    }
+
+    document.getElementById('modalTx').classList.add('hidden');
+  }
+
+  renderCashFlowChart(timeline) {
+    const canvas = document.getElementById('cashFlowChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (this.cashFlowChart) {
+      this.cashFlowChart.destroy();
+    }
+
+    const labels = timeline.map(t => t.date.slice(5)); // 'MM-DD'
+    const balances = timeline.map(t => t.balance);
+
+    this.cashFlowChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: '予測口座残高 (円)',
+          data: balances,
+          borderColor: '#2563eb',
+          backgroundColor: 'rgba(37, 99, 235, 0.08)',
+          fill: true,
+          tension: 0.2,
+          pointBackgroundColor: balances.map(b => b < 1000000 ? '#e11d48' : '#2563eb'),
+          pointRadius: 4,
+          pointHoverRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (context) => `予測残高: ¥${context.raw.toLocaleString()}`
+            }
+          }
+        },
+        scales: {
+          y: {
+            ticks: {
+              callback: (value) => `¥${(value / 10000).toFixed(0)}万`
+            },
+            grid: { color: '#f1f5f9' }
+          },
+          x: {
+            grid: { display: false }
+          }
+        }
+      }
+    });
+  }
+
+  renderUnreceivedList() {
+    const container = document.getElementById('unreceivedList');
+    const badge = document.getElementById('unreceivedCountBadge');
+    if (!container) return;
+
+    const txs = window.stoneStore.getTransactions()
+      .filter(tx => tx.type === 'income' && !tx.isActual);
+
+    if (badge) badge.textContent = `${txs.length}件`;
+
+    if (txs.length === 0) {
+      container.innerHTML = '<div class="p-4 text-center text-xs text-slate-400">現在、未入金の予定はありません</div>';
+      return;
+    }
+
+    container.innerHTML = txs.map(tx => `
+      <div class="py-2.5 flex items-center justify-between text-xs">
+        <div>
+          <div class="font-bold text-slate-800">${this.escapeHtml(tx.partner)}</div>
+          <div class="text-[11px] text-slate-400 flex items-center space-x-1.5 mt-0.5">
+            <span>入金予定日: ${tx.date}</span>
+            <span>•</span>
+            <span>${this.escapeHtml(tx.category || '工事代金')}</span>
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="font-extrabold text-emerald-700 text-sm">+¥${tx.amount.toLocaleString()}</div>
+          <button class="tx-actual-toggle-btn text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold px-2 py-0.5 rounded mt-1 hover:bg-emerald-100 transition" data-tx-id="${tx.id}">
+            入金済にする
+          </button>
+        </div>
+      </div>
+    `).join('');
+
+    container.querySelectorAll('.tx-actual-toggle-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        window.stoneStore.toggleTransactionActual(btn.dataset.txId);
+        this.showToast('入金実績として反映しました');
+      });
+    });
+  }
+
+  renderUnpaidList() {
+    const container = document.getElementById('unpaidList');
+    const badge = document.getElementById('unpaidCountBadge');
+    if (!container) return;
+
+    const txs = window.stoneStore.getTransactions()
+      .filter(tx => tx.type === 'expense' && !tx.isActual);
+
+    if (badge) badge.textContent = `${txs.length}件`;
+
+    if (txs.length === 0) {
+      container.innerHTML = '<div class="p-4 text-center text-xs text-slate-400">未払いの予定はありません</div>';
+      return;
+    }
+
+    container.innerHTML = txs.map(tx => `
+      <div class="py-2.5 flex items-center justify-between text-xs">
+        <div>
+          <div class="font-bold text-slate-800">${this.escapeHtml(tx.partner)}</div>
+          <div class="text-[11px] text-slate-400 flex items-center space-x-1.5 mt-0.5">
+            <span>支払期日: ${tx.date}</span>
+            <span>•</span>
+            <span>${this.escapeHtml(tx.category || '仕入・経費')}</span>
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="font-extrabold text-rose-700 text-sm">-¥${tx.amount.toLocaleString()}</div>
+          <button class="tx-actual-toggle-btn text-[10px] bg-rose-50 text-rose-700 border border-rose-300 font-bold px-2 py-0.5 rounded mt-1 hover:bg-rose-100 transition" data-tx-id="${tx.id}">
+            振込済にする
+          </button>
+        </div>
+      </div>
+    `).join('');
+
+    container.querySelectorAll('.tx-actual-toggle-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        window.stoneStore.toggleTransactionActual(btn.dataset.txId);
+        this.showToast('支払実績（振込済）として反映しました');
+      });
+    });
+  }
+
+  renderTransactionsTable() {
+    const tbody = document.getElementById('txTableBody');
+    if (!tbody) return;
+
+    const txs = window.stoneStore.getTransactions();
+
+    if (txs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-400 text-xs">登録された取引データはありません</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = txs.map(tx => {
+      const isIncome = tx.type === 'income';
+      return `
+        <tr class="hover:bg-slate-50 transition">
+          <td class="py-2.5 px-3 font-medium text-slate-700 whitespace-nowrap">${tx.date}</td>
+          <td class="py-2.5 px-2 whitespace-nowrap">
+            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${isIncome ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
+              ${isIncome ? '入金' : '支払'}
+            </span>
+          </td>
+          <td class="py-2.5 px-3">
+            <div class="font-bold text-slate-800">${this.escapeHtml(tx.partner)}</div>
+            <div class="text-[11px] text-slate-400">${this.escapeHtml(tx.category || '')} ${tx.note ? `• ${this.escapeHtml(tx.note)}` : ''}</div>
+          </td>
+          <td class="py-2.5 px-3 text-right font-extrabold whitespace-nowrap ${isIncome ? 'text-emerald-700' : 'text-rose-700'}">
+            ${isIncome ? '+' : '-'}¥${tx.amount.toLocaleString()}
+          </td>
+          <td class="py-2.5 px-3 text-center whitespace-nowrap">
+            <button class="tx-actual-toggle-btn px-2 py-0.5 rounded text-[11px] font-bold border transition ${tx.isActual ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}" data-tx-id="${tx.id}">
+              ${tx.isActual ? '✓ 実績' : '予定'}
+            </button>
+          </td>
+          <td class="py-2.5 px-2 text-right whitespace-nowrap">
+            <button class="tx-edit-btn p-1 text-slate-400 hover:text-blue-600 transition" data-tx-id="${tx.id}" title="編集">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+            </button>
+            <button class="tx-delete-btn p-1 text-slate-400 hover:text-red-600 transition ml-1" data-tx-id="${tx.id}" title="削除">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    tbody.querySelectorAll('.tx-actual-toggle-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        window.stoneStore.toggleTransactionActual(btn.dataset.txId);
+        this.showToast('ステータスを更新しました');
+      });
+    });
+
+    tbody.querySelectorAll('.tx-edit-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tx = window.stoneStore.getTransactions().find(t => t.id === btn.dataset.txId);
+        if (tx) this.openTxModal(tx);
+      });
+    });
+
+    tbody.querySelectorAll('.tx-delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (confirm('この入出金レコードを削除してもよろしいですか？')) {
+          window.stoneStore.deleteTransaction(btn.dataset.txId);
+          this.showToast('取引を削除しました');
+        }
+      });
+    });
+  }
+
+  // ==============================================================
+  // 3. 工事・お客様の管理
+  // ==============================================================
+  renderProjects() {
+    const container = document.getElementById('projectsListContainer');
+    if (!container) return;
+
+    const projects = window.stoneStore.getProjects();
+
+    if (projects.length === 0) {
+      container.innerHTML = '<div class="col-span-2 p-8 text-center text-slate-400 text-xs">現在、登録されている案件はありません</div>';
+      return;
+    }
+
+    const statusMap = {
+      'inquiry': { label: '相談・打合中', color: 'bg-slate-100 text-slate-700 border-slate-300' },
+      'drawing': { label: '見積・図面提出中', color: 'bg-blue-100 text-blue-800 border-blue-300' },
+      'contracted': { label: '契約済・石材手配中', color: 'bg-indigo-100 text-indigo-800 border-indigo-300' },
+      'carving': { label: '文字彫刻・工場加工中', color: 'bg-purple-100 text-purple-800 border-purple-300' },
+      'construction': { label: '現地施工・基礎据付中', color: 'bg-amber-100 text-amber-800 border-amber-300' },
+      'completed': { label: '完工・納骨引き渡し完了', color: 'bg-emerald-100 text-emerald-800 border-emerald-300' }
+    };
+
+    container.innerHTML = projects.map(p => {
+      const st = statusMap[p.status] || { label: p.status, color: 'bg-slate-100 text-slate-700 border-slate-200' };
+
+      return `
+        <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-blue-400 transition flex flex-col justify-between">
+          <div>
+            <!-- 上部バッジ ＆ アクション -->
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold px-2 py-0.5 rounded border ${st.color}">${st.label}</span>
+              <div class="flex items-center space-x-1">
+                <button class="proj-edit-btn p-1 text-slate-400 hover:text-blue-600 transition" data-proj-id="${p.id}" title="編集">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                </button>
+                <button class="proj-delete-btn p-1 text-slate-400 hover:text-red-600 transition" data-proj-id="${p.id}" title="削除">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- 案件名 ＆ 施主情報 -->
+            <h3 class="text-sm font-bold text-slate-900 leading-snug cursor-pointer hover:text-blue-600 transition" onclick="app.openProjectDetailModal('${p.id}')">
+              ${this.escapeHtml(p.name)}
+            </h3>
+
+            <div class="mt-2 space-y-1 text-xs text-slate-600">
+              ${p.customerName ? `<div>施主: <strong class="text-slate-800">${this.escapeHtml(p.customerName)}</strong></div>` : ''}
+              ${p.siteLocation ? `<div>場所: ${this.escapeHtml(p.siteLocation)}</div>` : ''}
+              ${p.scheduleDate ? `<div>工期: <span class="font-medium text-slate-700">${this.escapeHtml(p.scheduleDate)}</span></div>` : ''}
+              ${p.assignee ? `<div>担当: ${this.escapeHtml(p.assignee)}</div>` : ''}
+            </div>
+
+            <!-- 次の作業 -->
+            ${p.nextAction ? `
+              <div class="mt-2.5 bg-blue-50/70 p-2 rounded-lg border border-blue-100 text-xs text-blue-900">
+                <span class="font-bold">👉 次の作業:</span> ${this.escapeHtml(p.nextAction)}
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Google Drive リンク ＆ 詳細ボタン -->
+          <div class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center space-x-1.5">
+              ${p.driveLinks?.drawing ? `
+                <a href="${p.driveLinks.drawing}" target="_blank" rel="noopener noreferrer" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-medium flex items-center space-x-1 transition">
+                  <span>📐 図面</span>
+                </a>
+              ` : ''}
+              ${p.driveLinks?.estimate ? `
+                <a href="${p.driveLinks.estimate}" target="_blank" rel="noopener noreferrer" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-medium flex items-center space-x-1 transition">
+                  <span>📑 見積</span>
+                </a>
+              ` : ''}
+              ${p.driveLinks?.photos ? `
+                <a href="${p.driveLinks.photos}" target="_blank" rel="noopener noreferrer" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-medium flex items-center space-x-1 transition">
+                  <span>📷 写真</span>
+                </a>
+              ` : ''}
+            </div>
+
+            <button class="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center space-x-0.5 ml-auto" onclick="app.openProjectDetailModal('${p.id}')">
+              <span>関連タスク・収支</span>
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    container.querySelectorAll('.proj-edit-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const p = window.stoneStore.getProjects().find(proj => proj.id === btn.dataset.projId);
+        if (p) this.openProjectModal(p);
+      });
+    });
+
+    container.querySelectorAll('.proj-delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (confirm('この案件を削除しますか？紐づくタスク等は残ります。')) {
+          window.stoneStore.deleteProject(btn.dataset.projId);
+          this.showToast('案件を削除しました');
+        }
+      });
+    });
+  }
+
+  openProjectModal(proj = null) {
+    const modal = document.getElementById('modalProject');
+    const form = document.getElementById('formProject');
+    const titleEl = document.getElementById('modalProjectTitle');
+
+    if (proj) {
+      titleEl.textContent = '工事・お客様案件の編集';
+      document.getElementById('projEditId').value = proj.id;
+      document.getElementById('projInputName').value = proj.name;
+      document.getElementById('projInputCustomer').value = proj.customerName || '';
+      document.getElementById('projInputLocation').value = proj.siteLocation || '';
+      document.getElementById('projInputSchedule').value = proj.scheduleDate || '';
+      document.getElementById('projInputAssignee').value = proj.assignee || '';
+      document.getElementById('projInputStatus').value = proj.status || 'inquiry';
+      document.getElementById('projInputContractAmount').value = proj.contractAmount || '';
+      document.getElementById('projInputNextAction').value = proj.nextAction || '';
+      document.getElementById('projInputDriveDrawing').value = proj.driveLinks?.drawing || '';
+      document.getElementById('projInputDriveEstimate').value = proj.driveLinks?.estimate || '';
+      document.getElementById('projInputDriveInvoice').value = proj.driveLinks?.invoice || '';
+      document.getElementById('projInputDrivePhotos').value = proj.driveLinks?.photos || '';
+      document.getElementById('projInputNote').value = proj.note || '';
+    } else {
+      titleEl.textContent = '工事・お客様案件の登録';
+      form.reset();
+      document.getElementById('projEditId').value = '';
+    }
+
+    modal.classList.remove('hidden');
+  }
+
+  handleProjectSubmit() {
+    const id = document.getElementById('projEditId').value;
+    const projData = {
+      name: document.getElementById('projInputName').value.trim(),
+      customerName: document.getElementById('projInputCustomer').value.trim(),
+      siteLocation: document.getElementById('projInputLocation').value.trim(),
+      scheduleDate: document.getElementById('projInputSchedule').value.trim(),
+      assignee: document.getElementById('projInputAssignee').value.trim(),
+      status: document.getElementById('projInputStatus').value,
+      contractAmount: document.getElementById('projInputContractAmount').value,
+      nextAction: document.getElementById('projInputNextAction').value.trim(),
+      driveLinks: {
+        drawing: document.getElementById('projInputDriveDrawing').value.trim(),
+        estimate: document.getElementById('projInputDriveEstimate').value.trim(),
+        invoice: document.getElementById('projInputDriveInvoice').value.trim(),
+        photos: document.getElementById('projInputDrivePhotos').value.trim()
+      },
+      note: document.getElementById('projInputNote').value.trim()
+    };
+
+    if (id) {
+      window.stoneStore.updateProject(id, projData);
+      this.showToast('案件情報を更新しました');
+    } else {
+      window.stoneStore.addProject(projData);
+      this.showToast('新規案件を登録しました');
+    }
+
+    document.getElementById('modalProject').classList.add('hidden');
+  }
+
+  // 案件詳細モーダル（関連タスク・入出金を統合表示）
+  openProjectDetailModal(projId) {
+    const proj = window.stoneStore.getProjects().find(p => p.id === projId);
+    if (!proj) return;
+
+    const modal = document.getElementById('modalProjectDetail');
+    document.getElementById('detailProjName').textContent = proj.name;
+    document.getElementById('detailProjCustomer').textContent = proj.customerName || '未登録';
+    document.getElementById('detailProjLocation').textContent = proj.siteLocation || '未登録';
+    document.getElementById('detailProjSchedule').textContent = proj.scheduleDate || '未定';
+    document.getElementById('detailProjAmount').textContent = proj.contractAmount ? `¥${proj.contractAmount.toLocaleString()}` : '-';
+
+    // Google Drive ボタン生成
+    const driveContainer = document.getElementById('detailDriveLinks');
+    const links = proj.driveLinks || {};
+    let driveHtml = '';
+    if (links.drawing) driveHtml += `<a href="${links.drawing}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 flex items-center space-x-1 font-bold"><span>📐 CAD図面を開く</span></a>`;
+    if (links.estimate) driveHtml += `<a href="${links.estimate}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 flex items-center space-x-1 font-bold"><span>📑 見積書を開く</span></a>`;
+    if (links.invoice) driveHtml += `<a href="${links.invoice}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 flex items-center space-x-1 font-bold"><span>🧾 請求書を開く</span></a>`;
+    if (links.photos) driveHtml += `<a href="${links.photos}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 flex items-center space-x-1 font-bold"><span>📷 現場写真フォルダ</span></a>`;
+    if (!driveHtml) driveHtml = '<span class="text-slate-400">Driveリンクは未登録です</span>';
+    driveContainer.innerHTML = driveHtml;
+
+    // ひもづくタスク
+    const rel = window.stoneStore.getProjectRelations(projId);
+    const tasksContainer = document.getElementById('detailRelatedTasks');
+    if (rel.tasks.length === 0) {
+      tasksContainer.innerHTML = '<div class="text-slate-400 text-[11px]">この案件に紐づくタスクはありません</div>';
+    } else {
+      tasksContainer.innerHTML = rel.tasks.map(t => `
+        <div class="flex items-center justify-between p-2 bg-slate-50 rounded border border-slate-200 text-xs">
+          <div class="flex items-center space-x-2">
+            <span class="w-2 h-2 rounded-full ${t.status === 'completed' ? 'bg-emerald-500' : 'bg-amber-500'}"></span>
+            <span class="${t.status === 'completed' ? 'line-through text-slate-400' : 'font-bold text-slate-800'}">${this.escapeHtml(t.title)}</span>
+          </div>
+          <span class="text-[11px] text-slate-500">期限: ${t.dueDate} (${t.assignee})</span>
+        </div>
+      `).join('');
+    }
+
+    // ひもづく入出金
+    const txContainer = document.getElementById('detailRelatedTx');
+    if (rel.transactions.length === 0) {
+      txContainer.innerHTML = '<div class="text-slate-400 text-[11px]">この案件に紐づく入出金予定はありません</div>';
+    } else {
+      txContainer.innerHTML = rel.transactions.map(tx => `
+        <div class="flex items-center justify-between p-2 bg-slate-50 rounded border border-slate-200 text-xs">
+          <div>
+            <span class="font-bold text-slate-800">${this.escapeHtml(tx.partner)}</span>
+            <span class="text-[10px] text-slate-400 ml-1">(${tx.date} / ${tx.category})</span>
+          </div>
+          <div class="font-bold ${tx.type === 'income' ? 'text-emerald-700' : 'text-rose-700'}">
+            ${tx.type === 'income' ? '+' : '-'}¥${tx.amount.toLocaleString()}
+            <span class="text-[10px] ml-1 font-normal ${tx.isActual ? 'text-slate-800 font-bold' : 'text-slate-400'}">(${tx.isActual ? '実績' : '予定'})</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    modal.classList.remove('hidden');
+  }
+
+  // ==============================================================
+  // 4. 作業履歴・弥生会計記録
+  // ==============================================================
+  renderActivityLogs() {
+    const container = document.getElementById('activityLogsList');
+    if (!container) return;
+
+    let logs = window.stoneStore.getActivityLogs();
+    const query = document.getElementById('logSearchInput')?.value.toLowerCase().trim() || '';
+
+    if (query) {
+      logs = logs.filter(l => 
+        (l.action && l.action.toLowerCase().includes(query)) ||
+        (l.details && l.details.toLowerCase().includes(query)) ||
+        (l.user && l.user.toLowerCase().includes(query)) ||
+        (l.category && l.category.toLowerCase().includes(query))
+      );
+    }
+
+    if (logs.length === 0) {
+      container.innerHTML = '<div class="p-6 text-center text-slate-400 text-xs">作業履歴はありません</div>';
+      return;
+    }
+
+    container.innerHTML = logs.map(l => {
+      const isYayoi = l.category === '弥生会計' || (l.action && l.action.includes('弥生'));
+      const isWife = l.user === '私';
+
+      return `
+        <div class="relative pl-6 sm:pl-8 pb-3">
+          <!-- タイムラインの丸ポチ -->
+          <div class="absolute left-2 sm:left-3 top-1.5 w-2.5 h-2.5 -ml-1 rounded-full border-2 border-white ${isYayoi ? 'bg-amber-500 ring-2 ring-amber-300' : 'bg-blue-600'}"></div>
+
+          <div class="bg-slate-50 hover:bg-white p-3 rounded-xl border border-slate-200 shadow-sm transition">
+            <div class="flex flex-wrap items-center justify-between gap-1 mb-1">
+              <div class="flex items-center space-x-2">
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full ${isWife ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-800'}">${l.user}</span>
+                <span class="text-[10px] font-semibold text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">${l.category}</span>
+              </div>
+              <span class="text-[11px] text-slate-400">${l.timestamp}</span>
+            </div>
+
+            <div class="text-xs font-bold text-slate-900 mt-1">
+              ${this.escapeHtml(l.action)}
+            </div>
+
+            ${l.details ? `
+              <div class="mt-1.5 text-xs text-slate-600 whitespace-pre-wrap leading-relaxed bg-white p-2 rounded border border-slate-100">
+                ${this.escapeHtml(l.details)}
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  handleYayoiSubmit() {
+    const month = document.getElementById('yayoiInputMonth').value;
+    const docType = document.getElementById('yayoiInputDocType').value.trim();
+    const completedRange = document.getElementById('yayoiInputCompletedRange').value.trim();
+    const remaining = document.getElementById('yayoiInputRemaining').value.trim();
+
+    const details = `【対象月】${month}\n【資料の種類】${docType}\n【完了範囲】${completedRange}` +
+      (remaining ? `\n【残作業・確認事項】${remaining}` : '');
+
+    window.stoneStore.addActivityLog({
+      category: '弥生会計',
+      action: `弥生会計 ${month} 記帳進捗記録`,
+      details: details
+    });
+
+    document.getElementById('modalYayoi').classList.add('hidden');
+    this.showToast('弥生会計の入力進捗を記録しました！');
+  }
+
+  // ==============================================================
+  // 5. 重要メール
+  // ==============================================================
+  renderEmails() {
+    if (!window.stoneStore.canAccessEmails()) return;
+
+    const container = document.getElementById('emailsListContainer');
+    if (!container) return;
+
+    const emails = window.stoneStore.getEmails();
+
+    if (emails.length === 0) {
+      container.innerHTML = '<div class="p-8 text-center text-slate-400 text-xs">メールはありません</div>';
+      return;
+    }
+
+    container.innerHTML = emails.map(m => {
+      return `
+        <div class="bg-white rounded-xl p-3.5 sm:p-4 border ${!m.isProcessed && !m.isNoticeOrAd ? 'border-amber-300 bg-amber-50/20 shadow-sm' : 'border-slate-200'} transition hover:border-sky-300">
+          <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-2">
+            
+            <div class="flex-1">
+              <!-- 差出人 ＆ 日時 -->
+              <div class="flex flex-wrap items-center gap-1.5 mb-1">
+                <span class="text-xs font-bold text-slate-800">${this.escapeHtml(m.senderName)}</span>
+                <span class="text-[11px] text-slate-400">受信: ${m.date}</span>
+                ${m.dueDate ? `<span class="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">対応期限: ${m.dueDate}</span>` : ''}
+                <span class="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">担当: ${m.assignee}</span>
+              </div>
+
+              <!-- 件名 -->
+              <h3 class="text-xs sm:text-sm font-bold text-slate-900 cursor-pointer hover:text-sky-600 transition" onclick="app.openEmailDetailModal('${m.id}')">
+                ${this.escapeHtml(m.subject)}
+              </h3>
+            </div>
+
+            <!-- ステータスバッジ（既読／対応状況） -->
+            <div class="flex items-center space-x-1.5 flex-shrink-0">
+              <!-- 既読トグル -->
+              <button class="email-read-toggle-btn text-[11px] px-2 py-0.5 rounded font-medium border transition ${m.isRead ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-sky-600 text-white border-sky-600 font-bold'}" data-mail-id="${m.id}">
+                ${m.isRead ? '既読' : '未読'}
+              </button>
+
+              <!-- 対応済みトグル -->
+              <button class="email-proc-toggle-btn text-[11px] px-2 py-0.5 rounded font-bold border transition ${m.isProcessed ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-800 border-amber-300 pulse-warning'}" data-mail-id="${m.id}">
+                ${m.isProcessed ? '✓ 対応済' : '⚠️ 未対応'}
+              </button>
+            </div>
+
+          </div>
+
+          <!-- 本文抜粋 -->
+          <p class="text-xs text-slate-600 line-clamp-2 leading-relaxed bg-slate-50 p-2 rounded border border-slate-100 cursor-pointer" onclick="app.openEmailDetailModal('${m.id}')">
+            ${this.escapeHtml(m.body)}
+          </p>
+
+          <!-- メール下部アクション -->
+          <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+            <button class="text-sky-700 hover:text-sky-900 font-semibold flex items-center space-x-1" onclick="app.openEmailDetailModal('${m.id}')">
+              <span>全文を表示</span>
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+            </button>
+
+            <!-- タスク化ボタン -->
+            ${!m.taskCreated ? `
+              <button class="create-task-from-mail-btn bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2.5 py-1 rounded border border-blue-200 flex items-center space-x-1 transition" data-mail-id="${m.id}">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                <span>作業（タスク）に登録</span>
+              </button>
+            ` : `
+              <span class="text-[11px] text-emerald-600 font-semibold flex items-center">
+                <svg class="w-3.5 h-3.5 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                タスク登録済み
+              </span>
+            `}
+          </div>
+
+        </div>
+      `;
+    }).join('');
+
+    container.querySelectorAll('.email-read-toggle-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        window.stoneStore.toggleEmailRead(btn.dataset.mailId);
+      });
+    });
+
+    container.querySelectorAll('.email-proc-toggle-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        window.stoneStore.toggleEmailProcessed(btn.dataset.mailId);
+        this.showToast('対応状況を更新しました');
+      });
+    });
+
+    container.querySelectorAll('.create-task-from-mail-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mailId = btn.dataset.mailId;
+        const task = window.stoneStore.createTaskFromEmail(mailId);
+        if (task) {
+          this.showToast(`メールから「${task.title}」を今日の対応に追加しました！`);
+          this.switchView('home');
+        }
+      });
+    });
+  }
+
+  openEmailDetailModal(mailId) {
+    const mail = window.stoneStore.getEmails().find(m => m.id === mailId);
+    if (!mail) return;
+
+    this.currentModalMailId = mailId;
+    const modal = document.getElementById('modalEmailDetail');
+    document.getElementById('modalMailSender').textContent = mail.sender;
+    document.getElementById('modalMailSubject').textContent = mail.subject;
+    document.getElementById('modalMailDate').textContent = `受信: ${mail.date}`;
+    document.getElementById('modalMailDueDate').textContent = mail.dueDate ? `期限: ${mail.dueDate}` : '期限指定なし';
+    document.getElementById('modalMailAssignee').textContent = `担当: ${mail.assignee}`;
+    document.getElementById('modalMailBody').textContent = mail.body;
+
+    const link = document.getElementById('modalMailLink');
+    if (link) link.href = mail.mailUrl || '#';
+
+    // 既読にする
+    if (!mail.isRead) {
+      window.stoneStore.toggleEmailRead(mailId);
+    }
+
+    modal.classList.remove('hidden');
+  }
+
+  // ==============================================================
+  // ユーティリティ
+  // ==============================================================
+  showToast(message) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = 'bg-slate-900 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-xl border border-slate-700 transition transform duration-300 translate-y-2 opacity-0 flex items-center space-x-2 pointer-events-auto';
+    toast.innerHTML = `
+      <svg class="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+      <span>${this.escapeHtml(message)}</span>
+    `;
+
+    container.appendChild(toast);
+
+    requestAnimationFrame(() => {
+      toast.classList.remove('translate-y-2', 'opacity-0');
+    });
+
+    setTimeout(() => {
+      toast.classList.add('opacity-0', 'translate-y-2');
+      setTimeout(() => toast.remove(), 300);
+    }, 2800);
+  }
+
+  escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+}
+
+// アプリケーション初期化
+document.addEventListener('DOMContentLoaded', () => {
+  window.app = new StoneApp();
+});

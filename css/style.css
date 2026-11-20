@@ -1,0 +1,94 @@
+/* 
+  中川石材 業務管理システム - スタイルシート
+  モバイル片手操作最適化、石材店向け上質テーマ、レスポンシブ
+*/
+
+:root {
+  --primary-color: #1e3a8a; /* 紺藍色・信頼感 */
+  --primary-hover: #1e40af;
+  --stone-slate: #334155;   /* 石材・スレートグレー */
+  --accent-amber: #d97706;  /* 警告・注意 */
+  --accent-emerald: #059669;/* 完了・安全・入金 */
+  --accent-rose: #e11d48;   /* 期限超過・支払・緊急 */
+}
+
+/* スマホ片手操作のための安全領域・タップ領域確保 */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* モバイル下部固定バー */
+.bottom-nav {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+/* タップしやすい最低ボタンサイズ 44px */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* カスタムスクロールバー */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* バッジの点滅（期限超過など） */
+@keyframes soft-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.02); }
+}
+.pulse-warning {
+  animation: soft-pulse 2s infinite ease-in-out;
+}
+
+/* モーダル表示用トランジション */
+.modal-backdrop {
+  background-color: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+/* 音声入力中の波紋エフェクト */
+@keyframes listening-wave {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+  70% { box-shadow: 0 0 0 14px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+.mic-listening {
+  animation: listening-wave 1.5s infinite;
+  background-color: #ef4444 !important;
+  color: white !important;
+}
+
+/* 印刷用スタイル（案件詳細や資金計画を紙で出力する際） */
+@media print {
+  .no-print, .bottom-nav, aside, header {
+    display: none !important;
+  }
+  body {
+    background: white;
+    color: black;
+  }
+}
+
+/* フォールバック用基本スタイル */
+button {
+  cursor: pointer;
+}
+input, select, textarea {
+  font-family: inherit;
+}

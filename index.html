@@ -1,0 +1,2414 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>中川石材 業務管理</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f5fa',
+              100: '#e0ebf5',
+              500: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e3a8a',
+              900: '#0f172a'
+            },
+            stone: {
+              50: '#f8fafc',
+              100: '#f1f5f9',
+              600: '#475569',
+              700: '#334155',
+              800: '#1e293b'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- Chart.js CDN for 資金見通しグラフ -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col antialiased selection:bg-blue-100">
+
+  <!-- ============================================================== -->
+  <!-- 共通ヘッダー -->
+  <!-- ============================================================== -->
+  <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex items-center justify-between">
+      
+      <!-- ロゴ・店舗名 -->
+      <div class="flex items-center space-x-2">
+        <div class="w-8 h-8 rounded bg-blue-600 flex items-center justify-center font-bold text-white shadow">
+          石
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="font-bold text-base sm:text-lg leading-tight tracking-wide">中川石材</h1>
+            <span class="bg-blue-500/30 text-blue-200 text-xs px-2 py-0.5 rounded-full font-medium border border-blue-400/40">試作版</span>
+          </div>
+          <p class="text-[11px] text-slate-400 hidden sm:block">経理・図面・請求・現場スケジュール管理</p>
+        </div>
+      </div>
+
+      <!-- 右側：ユーザー切り替えモック（権限制御体験） ＆ 本運用案内ボタン -->
+      <div class="flex items-center space-x-1.5 sm:space-x-2">
+        <!-- Googleドライブ クラウド同期ボタン -->
+        <button id="btnHeaderGDriveSync" class="flex items-center space-x-1 bg-blue-900/60 hover:bg-blue-800 text-blue-200 border border-blue-500/40 text-xs px-2 sm:px-2.5 py-1.5 rounded-lg transition" title="Googleドライブ クラウド自動同期">
+          <svg class="w-3.5 h-3.5 text-blue-300" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z"/></svg>
+          <span id="headerGDriveSyncStatus" class="font-medium text-[11px] hidden sm:inline">Google同期</span>
+        </button>
+
+        <!-- ユーザー切り替えプルダウン -->
+        <div class="flex items-center bg-slate-800 rounded-lg p-1 border border-slate-700">
+          <span class="text-xs text-slate-400 px-1 hidden md:inline">操作者:</span>
+          <select id="userSelector" class="bg-slate-900 text-white text-xs font-medium rounded px-2 py-1.5 border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer">
+            <option value="wife">私（経理・図面・管理者）</option>
+            <option value="husband">夫（現場・工事担当）</option>
+            <option value="staff3">スタッフ3人目（閲覧限定）</option>
+          </select>
+        </div>
+
+        <!-- スマホ接続QRボタン -->
+        <button id="btnOpenQrModal" class="hidden sm:flex items-center space-x-1 bg-slate-800 hover:bg-slate-700 text-blue-300 border border-slate-700 text-xs px-2.5 py-1.5 rounded-lg transition" title="スマホで開くためのQRコード">
+          <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
+          <span class="font-medium">スマホで開く</span>
+        </button>
+
+        <!-- 本運用／設定ボタン -->
+        <button id="btnOpenSettings" class="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg touch-target flex items-center justify-center transition" title="設定・本運用ガイド">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- 端末内保存の案内バナー -->
+    <div class="bg-amber-500/20 border-t border-b border-amber-500/40 px-3 py-1 text-center text-xs text-amber-200 flex items-center justify-center space-x-1">
+      <span>💡 この画面の変更は<strong>お使いの端末（ブラウザ）内に保存</strong>されます。ページを再読み込みしても消えません。</span>
+    </div>
+  </header>
+
+  <!-- ============================================================== -->
+  <!-- メインレイアウト（PCサイドバー + メイン画面） -->
+  <!-- ============================================================== -->
+  <div class="max-w-7xl mx-auto w-full flex-1 flex flex-col md:flex-row pb-20 md:pb-8">
+
+    <!-- PC専用サイドナビゲーション -->
+    <aside class="hidden md:block w-64 p-4 border-r border-slate-200 bg-white min-h-[calc(100vh-100px)]">
+      <div class="space-y-1">
+        <button class="nav-tab-btn active w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition" data-view="home">
+          <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+          <span>今日の対応</span>
+          <span id="badgeOverdueSidebar" class="ml-auto bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full font-bold hidden">0</span>
+        </button>
+
+        <button id="sideNavFunds" class="nav-tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition" data-view="funds">
+          <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          <span>お金の管理</span>
+          <span class="text-[10px] text-amber-600 font-bold ml-auto bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">資金繰り</span>
+        </button>
+
+        <button class="nav-tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition" data-view="projects">
+          <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+          <span>工事・お客様</span>
+        </button>
+
+        <button class="nav-tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition" data-view="logs">
+          <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          <span>作業履歴・弥生</span>
+        </button>
+
+        <button id="sideNavEmails" class="nav-tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition" data-view="emails">
+          <svg class="w-5 h-5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+          <span>重要メール</span>
+          <span id="badgeUnprocessedEmailsSidebar" class="ml-auto bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-full font-bold">2</span>
+        </button>
+
+        <button class="nav-tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition" data-view="settings">
+          <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          <span>本運用・設定</span>
+        </button>
+      </div>
+
+      <!-- 既存ツール連携リンクエリア -->
+      <div class="mt-8 pt-6 border-t border-slate-200">
+        <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">既存の仕組みとの連携</h4>
+        <div class="space-y-2 text-xs">
+          <a href="https://docs.google.com/spreadsheets" target="_blank" rel="noopener noreferrer" class="flex items-center text-slate-600 hover:text-emerald-700 p-2 rounded hover:bg-emerald-50 transition border border-dashed border-slate-300">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span>
+            <span>Mツール（スプレッドシート）</span>
+            <svg class="w-3.5 h-3.5 ml-auto text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+          </a>
+          <div class="p-2 bg-slate-50 rounded border border-slate-200 text-slate-500">
+            <div class="font-medium text-slate-700">弥生会計 連携</div>
+            <div class="text-[11px] mt-0.5">記帳進捗を作業履歴から記録中</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- メインコンテンツ表示エリア -->
+    <main class="flex-1 p-3 sm:p-6 overflow-x-hidden">
+      
+      <!-- ============================================================ -->
+      <!-- 1. ホーム / 今日の対応 VIEW -->
+      <!-- ============================================================ -->
+      <section id="view-home" class="view-panel space-y-4">
+
+        <!-- ============================================================ -->
+        <!-- 【最優先】中川石材 資金繰り・口座別残高ダッシュボード（指示書準拠） -->
+        <!-- ============================================================ -->
+        <div id="topFundsDashboard" class="bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 text-white rounded-2xl p-4 sm:p-5 shadow-lg space-y-4 border border-slate-700/60">
+          
+          <!-- 最上段：現在資金残高（全口座合計） ＆ アクションボタン -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-700/80 pb-3">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="text-xs text-sky-400 font-bold uppercase tracking-wider">🏦 今日現在の資金繰り状況</span>
+                <span class="bg-emerald-500/20 text-emerald-300 text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/30 font-medium">5銀行口座＋手許現金（計6財布）</span>
+              </div>
+                            <div class="flex items-center space-x-2 mt-1">
+                <div class="text-xs text-slate-400 font-medium">全口座合計 手元資金:</div>
+                <div id="topTotalCash" class="text-2xl sm:text-4xl font-black text-white tracking-tight">¥0</div>
+                <span id="yayoiLastImportBadge" class="hidden sm:inline text-[10px] bg-indigo-950/80 text-indigo-300 border border-indigo-500/40 px-2 py-0.5 rounded ml-2">弥生連携: 未取り込み</span>
+              </div>
+            </div>
+
+            <!-- ショートカットボタン群 -->
+            <div class="flex flex-wrap items-center gap-2">
+                            <button id="btnOpenMisocaModal" class="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition flex items-center space-x-1.5 shadow-sm">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                <span>📑 Misoca連携</span>
+              </button>
+                            <button id="btnOpenPhotoScanModal" class="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition flex items-center space-x-1.5 shadow-sm">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                <span>📷 請求書撮影・AI読取</span>
+              </button>
+              <button id="btnOpenAccountsModal" class="bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-600 text-xs px-3 py-1.5 rounded-lg transition flex items-center space-x-1.5 shadow-sm">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
+                <span>口座残高の確認・変更</span>
+              </button>
+
+              <button id="btnTopOpenTransferModal" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition flex items-center space-x-1.5 shadow-sm">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                <span>口座間振替</span>
+              </button>
+
+              <button id="btnGoToDailyCashFlow" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition flex items-center space-x-1.5 shadow-sm">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                <span>日別資金繰り表へ</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 2段目：口座別残高カード（5銀行＋手許現金） -->
+          <div>
+            <div class="text-[11px] font-bold text-slate-300 mb-2 flex items-center justify-between">
+              <span>● 口座別残高（個別管理）</span>
+              <span class="text-[10px] text-slate-400">クリックでその口座の推移を表示</span>
+            </div>
+            <div id="topAccountCardsContainer" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+              <!-- JSで動的にレンダリング -->
+            </div>
+          </div>
+
+          <!-- 3段目：資金不足・未配分警告エリア（条件付き表示） -->
+          <div id="topAlertsArea" class="space-y-2">
+            <!-- JSで資金ショート警告、口座未定警告をレンダリング -->
+          </div>
+
+          <!-- 4段目：サマリーKPIカード（今後30日予定、未回収請求書、財務三表リンク、期間予測） -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-xs">
+            <!-- 今後30日間の入金・支払予定 -->
+            <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700">
+              <div class="text-[11px] text-slate-400 font-semibold">📅 今後30日間の入出金予定</div>
+              <div class="flex items-center justify-between mt-1 text-xs">
+                <span class="text-emerald-400">入金: <strong id="topNext30Income">¥0</strong></span>
+                <span class="text-rose-400">支払: <strong id="topNext30Expense">¥0</strong></span>
+              </div>
+              <div class="mt-1 pt-1 border-t border-slate-700/60 flex items-center justify-between">
+                <span class="text-[10px] text-slate-400">差引収支:</span>
+                <span id="topNext30Net" class="font-bold text-xs">¥0</span>
+              </div>
+            </div>
+
+            <!-- 未回収の請求書（Misoca連携予定枠） -->
+            <div id="btnTopOpenUncollectedModal" class="bg-slate-800/90 hover:bg-slate-700/80 p-3 rounded-xl border border-slate-700 cursor-pointer transition shadow-sm group">
+              <div class="text-[11px] text-amber-300 font-semibold flex items-center justify-between">
+                <span class="group-hover:text-amber-200">📑 未回収の請求書（売掛金）</span>
+                <span id="topUncollectedCount" class="bg-amber-400/20 text-amber-300 text-[10px] px-1.5 py-0.2 rounded font-bold">0件</span>
+              </div>
+              <div class="text-lg font-black text-amber-200 mt-1" id="topUncollectedTotal">¥0</div>
+              <div class="text-[10px] text-sky-400 mt-0.5 flex items-center justify-between">
+                <span>Misoca連携・入金予定</span>
+                <span class="underline font-bold text-[10px]">一覧・入金消込 ➔</span>
+              </div>
+            </div>
+
+            <!-- 財務三表リンク ＆ 予測期間切替 -->
+            <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700 flex flex-col justify-between">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] text-sky-300 font-semibold">📊 財務三表 ＆ 予測</span>
+                <button id="btnTopOpenBSPLModal" class="bg-sky-600 hover:bg-sky-500 text-white text-[10px] px-2 py-0.5 rounded font-bold transition">
+                  三表を見る ➔
+                </button>
+              </div>
+              <div class="flex items-center space-x-1 mt-2">
+                <span class="text-[10px] text-slate-400">予測期間:</span>
+                <button class="top-forecast-btn px-2 py-1 rounded bg-sky-700 text-white text-[10px] font-bold" data-period="3">3か月</button>
+                <button class="top-forecast-btn px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 text-[10px] font-bold" data-period="6">6か月</button>
+                <button class="top-forecast-btn px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 text-[10px] font-bold" data-period="12">12か月</button>
+                <button id="btnOpenSimulationModal" class="px-2 py-1 rounded bg-purple-700 hover:bg-purple-600 text-white text-[10px] font-bold shadow-sm transition ml-1 flex items-center space-x-1">
+                  <span>⚡ 試算</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        
+        <!-- トップアラートカード（スマホでも目立つバッジ集計） -->
+        <div class="grid grid-cols-3 gap-2 sm:gap-4">
+          <!-- 期限超過 -->
+          <div id="statCardOverdue" class="bg-red-50 border border-red-200 rounded-xl p-3 sm:p-4 cursor-pointer hover:bg-red-100/70 transition shadow-sm" onclick="app.setTaskFilter('overdue')">
+            <div class="flex items-center justify-between">
+              <span class="text-xs sm:text-sm font-bold text-red-700 flex items-center">
+                <span class="w-2 h-2 rounded-full bg-red-600 mr-1.5 animate-ping"></span>
+                期限超過
+              </span>
+              <span class="text-[10px] text-red-500 font-medium hidden sm:inline">早急に対応</span>
+            </div>
+            <div class="mt-2 flex items-baseline">
+              <span id="statCountOverdue" class="text-2xl sm:text-3xl font-extrabold text-red-600">0</span>
+              <span class="ml-1 text-xs text-red-600 font-medium">件</span>
+            </div>
+          </div>
+
+          <!-- 今日の期限 -->
+          <div id="statCardToday" class="bg-amber-50 border border-amber-200 rounded-xl p-3 sm:p-4 cursor-pointer hover:bg-amber-100/70 transition shadow-sm" onclick="app.setTaskFilter('today')">
+            <div class="flex items-center justify-between">
+              <span class="text-xs sm:text-sm font-bold text-amber-800">今日期限</span>
+              <span class="text-[10px] text-amber-600 font-medium hidden sm:inline">今日中</span>
+            </div>
+            <div class="mt-2 flex items-baseline">
+              <span id="statCountToday" class="text-2xl sm:text-3xl font-extrabold text-amber-700">0</span>
+              <span class="ml-1 text-xs text-amber-700 font-medium">件</span>
+            </div>
+          </div>
+
+          <!-- 今週の予定 -->
+          <div id="statCardWeek" class="bg-blue-50 border border-blue-200 rounded-xl p-3 sm:p-4 cursor-pointer hover:bg-blue-100/70 transition shadow-sm" onclick="app.setTaskFilter('week')">
+            <div class="flex items-center justify-between">
+              <span class="text-xs sm:text-sm font-bold text-blue-800">今週の予定</span>
+              <span class="text-[10px] text-blue-600 font-medium hidden sm:inline">近近日中</span>
+            </div>
+            <div class="mt-2 flex items-baseline">
+              <span id="statCountWeek" class="text-2xl sm:text-3xl font-extrabold text-blue-700">0</span>
+              <span class="ml-1 text-xs text-blue-700 font-medium">件</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- コントロールバー（フィルタ ＆ 追加ボタン） -->
+        <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          
+          <!-- 状態・期限フィルタタブ -->
+          <div class="flex items-center space-x-1 overflow-x-auto pb-1 sm:pb-0 text-xs sm:text-sm font-medium">
+            <button class="task-filter-btn px-3 py-1.5 rounded-lg active bg-blue-600 text-white" data-filter="all">すべて</button>
+            <button class="task-filter-btn px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100" data-filter="overdue">期限超過</button>
+            <button class="task-filter-btn px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100" data-filter="today">今日中</button>
+            <button class="task-filter-btn px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100" data-filter="week">今週中</button>
+            <button class="task-filter-btn px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100" data-filter="completed">完了済み</button>
+          </div>
+
+          <!-- 担当者＆カテゴリ絞り込み -->
+          <div class="flex items-center space-x-2">
+            <select id="taskAssigneeFilter" class="bg-slate-50 border border-slate-200 text-xs rounded-lg px-2 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
+              <option value="all">担当: 全員</option>
+              <option value="私">私（経理・図面）</option>
+              <option value="夫">夫（現場・工事）</option>
+            </select>
+
+            <select id="taskCategoryFilter" class="bg-slate-50 border border-slate-200 text-xs rounded-lg px-2 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
+              <option value="all">種別: すべて</option>
+              <option value="支払い">支払い</option>
+              <option value="返信">返信</option>
+              <option value="工事準備">工事準備</option>
+              <option value="経理作業">経理作業</option>
+              <option value="その他">その他</option>
+            </select>
+
+            <!-- タスク追加ボタン（PC用） -->
+            <button id="btnOpenAddTaskModal" class="hidden sm:flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-2 rounded-lg shadow transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+              <span>対応を追加</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- タスク一覧表示コンテナ -->
+        
+        <!-- ご主人（朋さん）専用 現場・経営サマリー（操作者が「夫」の時に強調表示） -->
+        <div id="husbandQuickDashboard" class="hidden bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-4 sm:p-5 rounded-2xl shadow-md space-y-3 border border-indigo-700/60">
+          <div class="flex items-center justify-between border-b border-indigo-800/80 pb-2.5">
+            <div class="flex items-center space-x-2">
+              <span class="text-xl">👨‍💼</span>
+              <div>
+                <h3 class="text-sm sm:text-base font-bold text-white">朋さん専用 現場・資金サマリー</h3>
+                <p class="text-[10px] text-indigo-300">細かい簿記用語なしで、今の全体資金と現場の予定がひと目でわかります</p>
+              </div>
+            </div>
+            <span class="bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">現場・経営閲覧モード</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
+            <div class="bg-slate-800/80 p-3 rounded-xl border border-indigo-700/50">
+              <div class="text-[11px] text-slate-300">今使える全体のお金</div>
+              <div class="text-xl sm:text-2xl font-black text-emerald-400 mt-0.5" id="husbandTotalCash">¥5,000,000</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">全5口座＋手許現金の合計</div>
+            </div>
+            <div class="bg-slate-800/80 p-3 rounded-xl border border-indigo-700/50">
+              <div class="text-[11px] text-slate-300">今月のお金の出入り予測</div>
+              <div class="text-sm font-bold text-white mt-1 flex justify-center space-x-2">
+                <span class="text-emerald-400">入金: <span id="husbandMonthIn">¥2,105,000</span></span>
+                <span class="text-rose-400">支払: <span id="husbandMonthOut">¥1,698,000</span></span>
+              </div>
+              <div class="text-[10px] text-sky-300 font-bold mt-1" id="husbandMonthStatus">✅ 今月は黒字・資金安全です</div>
+            </div>
+            <div class="bg-slate-800/80 p-3 rounded-xl border border-indigo-700/50">
+              <div class="text-[11px] text-slate-300">資金ショート警戒予報</div>
+              <div class="text-sm font-bold text-emerald-300 mt-1" id="husbandShortageBadge">✅ 今後3か月は安全圏です</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">残高不足の恐れがあれば赤文字で警告</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="taskListContainer" class="space-y-2.5">
+          <!-- JSで動的にレンダリングされます -->
+        </div>
+
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- 2. お金の管理 VIEW -->
+      <!-- ============================================================ -->
+      <section id="view-funds" class="view-panel hidden space-y-4">
+        
+        <!-- 権限なし警告（3人目スタッフ用） -->
+        <div id="fundsRestrictedNotice" class="hidden bg-red-50 border border-red-200 rounded-xl p-8 text-center">
+          <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-3">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m0 0v2m0-2h2m-2 0H10m4-11a4 4 0 00-8 0v4h8V6zM5 10h14a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2z"></path></svg>
+          </div>
+          <h3 class="text-base font-bold text-slate-800">閲覧権限がありません</h3>
+          <p class="text-xs text-slate-600 mt-1 max-w-md mx-auto">
+            資金情報（口座残高・入出金予定・資金繰り）は、機密保護のため管理者（私・夫）のみ閲覧可能に制限されています。<br>
+            上部の操作者切り替えから「私」または「夫」を選択すると確認できます。
+          </p>
+        </div>
+
+        <div id="fundsContent" class="space-y-4">
+          
+          <!-- 利益と口座残高の混同防止 啓発メッセージ -->
+          <div class="bg-blue-50 border-l-4 border-blue-600 p-3 sm:p-4 rounded-r-xl shadow-sm text-xs text-blue-900 flex items-start space-x-2">
+            <svg class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <div>
+              <span class="font-bold">利益（損益）と口座残高（手元資金）は異なります！</span>
+              <p class="mt-0.5 text-blue-800 leading-relaxed">
+                石材店では「契約・売上が上がっても、実際の入金は工事完了後」や「石材仕入れ代の先払い」が発生します。ここでは<strong>「何にいくら使っているか」と「支払日に口座のお金が足りるか（黒字倒産の防止）」</strong>を月次資金繰り表と費目別内訳から正確に把握できます。
+              </p>
+            </div>
+          </div>
+
+          <!-- お金の管理 サブタブ（資金繰り表 / 支出内訳 / 工事別原価 / キャッシュフロー / 残高推移） -->
+          <div class="bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-1 text-xs font-bold overflow-x-auto">
+            <button class="funds-subtab-btn active px-3 sm:px-3.5 py-2 rounded-lg bg-blue-600 text-white shadow-sm flex items-center space-x-1.5 whitespace-nowrap transition" data-subtab="statement">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+              <span>📑 月次 資金繰り表</span>
+            </button>
+            <button class="funds-subtab-btn px-3 sm:px-3.5 py-2 rounded-lg text-slate-600 hover:bg-slate-100 flex items-center space-x-1.5 whitespace-nowrap transition" data-subtab="breakdown">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path></svg>
+              <span>📊 何に使っているか（支出分析）</span>
+            </button>
+            <button class="funds-subtab-btn px-3 sm:px-3.5 py-2 rounded-lg text-slate-600 hover:bg-slate-100 flex items-center space-x-1.5 whitespace-nowrap transition" data-subtab="profitability">
+              <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+              <span>🏗️ 工事別 原価・利益（儲け）</span>
+            </button>
+            <button class="funds-subtab-btn px-3 sm:px-3.5 py-2 rounded-lg text-slate-600 hover:bg-slate-100 flex items-center space-x-1.5 whitespace-nowrap transition" data-subtab="cashflow">
+              <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              <span>💵 キャッシュフロー・日繰り</span>
+            </button>
+            <button class="funds-subtab-btn px-3 sm:px-3.5 py-2 rounded-lg text-slate-600 hover:bg-slate-100 flex items-center space-x-1.5 whitespace-nowrap transition" data-subtab="overview">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
+              <span>📈 残高推移・取引一覧</span>
+            </button>
+          </div>
+
+          <!-- ======================================================== -->
+          <!-- サブ画面 1: 本格 月次資金繰り表（マトリクス） -->
+          <!-- ======================================================== -->
+          <div id="subtab-panel-statement" class="funds-subpanel space-y-4">
+            
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3 border-slate-100">
+                <div>
+                  <h3 class="text-sm sm:text-base font-bold text-slate-900 flex items-center">
+                    <span>📑 月次資金繰り予定・実績表</span>
+                    <span class="ml-2 text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-semibold">石材店特化</span>
+                  </h3>
+                  <p class="text-[11px] text-slate-500 mt-0.5">前月繰越・売上入金・原価仕入・人件費・固定費・借入返済の月別推移</p>
+                </div>
+                <div class="flex items-center space-x-2">
+                  <button id="btnOpenAddTxModalStmt" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow transition flex items-center space-x-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    <span>入出金を登録</span>
+                  </button>
+                  <button onclick="window.print()" class="no-print bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-300 transition flex items-center space-x-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                    <span>印刷</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 資金繰り表テーブル（横スクロール対応） -->
+              <div class="overflow-x-auto border border-slate-200 rounded-lg shadow-sm">
+                <table id="cashFlowStatementTable" class="w-full text-xs text-left border-collapse min-w-[620px]">
+                  <!-- JSで動的に構築 -->
+                </table>
+              </div>
+
+              <!-- 表のセルクリック時の明細表示エリア -->
+              <div id="stmtDetailContainer" class="hidden p-3 bg-blue-50/60 rounded-lg border border-blue-200 text-xs">
+                <div class="flex items-center justify-between mb-1.5 font-bold text-blue-900">
+                  <span id="stmtDetailTitle">内訳明細</span>
+                  <button id="btnCloseStmtDetail" class="text-blue-500 hover:text-blue-700 font-normal text-[11px]">閉じる ✕</button>
+                </div>
+                <div id="stmtDetailList" class="space-y-1 text-slate-700"></div>
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- ======================================================== -->
+          <!-- サブ画面 2: 何に使っているか（費目別支出分析） -->
+          <!-- ======================================================== -->
+          <div id="subtab-panel-breakdown" class="funds-subpanel hidden space-y-4">
+            
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3 border-slate-100">
+                <div>
+                  <h3 class="text-sm sm:text-base font-bold text-slate-900 flex items-center">
+                    <span>📊 費目別 支出構成分析（何にいくら使っているか）</span>
+                  </h3>
+                  <p class="text-[11px] text-slate-500 mt-0.5">仕入・外注・人件費・燃料費・保険・借入返済などの割合と金額</p>
+                </div>
+
+                <!-- 集計対象月の選択 -->
+                <div class="flex items-center space-x-2">
+                  <span class="text-xs text-slate-500 font-medium">集計期間:</span>
+                  <select id="expenseBreakdownMonthSelect" class="bg-slate-50 border border-slate-300 text-xs font-bold rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                    <option value="all">今後3か月間（全期間）</option>
+                    <option value="2026-10">2026年10月度</option>
+                    <option value="2026-11">2026年11月度</option>
+                    <option value="2026-12">2026年12月度</option>
+                    <option value="2027-01">2027年01月度</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- 支出合計サマリーバナー -->
+              <div class="bg-slate-900 text-white p-3.5 rounded-xl flex items-center justify-between shadow-sm">
+                <div>
+                  <div class="text-[11px] text-slate-400 font-medium" id="breakdownPeriodLabel">今後3か月間の支出総額</div>
+                  <div class="text-2xl sm:text-3xl font-black mt-0.5" id="breakdownTotalAmount">¥0</div>
+                </div>
+                <div class="text-right text-xs text-slate-300 space-y-0.5">
+                  <div>石材仕入・工事費・給与・固定費</div>
+                  <div class="text-[11px] text-slate-400">※不要な経費や資金繰りの圧迫要因をチェックできます</div>
+                </div>
+              </div>
+
+              <!-- 固定費 vs 変動費（工事原価）サマリーカード -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div class="p-3 bg-amber-50/70 rounded-xl border border-amber-200">
+                  <div class="flex items-center justify-between text-xs mb-1">
+                    <span class="font-bold text-amber-900 flex items-center">
+                      <span class="w-2 h-2 rounded-full bg-amber-500 mr-1.5"></span>固定費（維持管理・給与・返済）
+                    </span>
+                    <span id="fixedExpensePct" class="font-extrabold text-amber-800">0%</span>
+                  </div>
+                  <div class="text-xl font-extrabold text-amber-950" id="fixedExpenseAmount">¥0</div>
+                  <p class="text-[10px] text-amber-700 mt-0.5">※専従者給与、公庫返済、保険、燃料代など（売上ゼロでも必要）</p>
+                </div>
+
+                <div class="p-3 bg-blue-50/70 rounded-xl border border-blue-200">
+                  <div class="flex items-center justify-between text-xs mb-1">
+                    <span class="font-bold text-blue-900 flex items-center">
+                      <span class="w-2 h-2 rounded-full bg-blue-500 mr-1.5"></span>変動費（工事原価・仕入）
+                    </span>
+                    <span id="variableExpensePct" class="font-extrabold text-blue-800">0%</span>
+                  </div>
+                  <div class="text-xl font-extrabold text-blue-950" id="variableExpenseAmount">¥0</div>
+                  <p class="text-[10px] text-blue-700 mt-0.5">※石材仕入代、生コン建材、重機リース、外注加工など</p>
+                </div>
+              </div>
+
+              <!-- グラフ ＆ 費目別内訳リスト -->
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-center pt-2">
+                <!-- ドーナツチャート -->
+                <div class="h-64 relative flex items-center justify-center p-2 bg-slate-50/50 rounded-xl border border-slate-100">
+                  <canvas id="expenseDonutChart"></canvas>
+                </div>
+
+                <!-- 費目ランキングリスト -->
+                <div id="expenseRankingList" class="space-y-2 max-h-80 overflow-y-auto pr-1">
+                  <!-- JSで動的に構築 -->
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- ======================================================== -->
+          <!-- サブ画面 3: 🏗️ 工事・案件別 原価・収支（個別原価管理） -->
+          <!-- ======================================================== -->
+          <div id="subtab-panel-profitability" class="funds-subpanel hidden space-y-4">
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+              <div class="border-b pb-3 border-slate-100">
+                <h3 class="text-sm sm:text-base font-bold text-slate-900 flex items-center">
+                  <span>🏗️ 工事・案件別 原価収支＆粗利率</span>
+                  <span class="ml-2 text-[10px] bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded font-semibold">個別原価計算</span>
+                </h3>
+                <p class="text-[11px] text-slate-500 mt-0.5">「どの工事で石材代や重機にいくら使って、いくら儲かったのか」を工事ごとに可視化</p>
+              </div>
+
+              <!-- 工事別カード一覧 -->
+              <div id="projectProfitabilityList" class="space-y-3">
+                <!-- JSで動的に構築 -->
+              </div>
+            </div>
+          </div>
+
+          <!-- ======================================================== -->
+          <!-- サブ画面 4: 💵 キャッシュフロー計算書 ＆ 日繰りカレンダー -->
+          <!-- ======================================================== -->
+          <div id="subtab-panel-cashflow" class="funds-subpanel hidden space-y-4">
+            
+            <!-- 日別資金繰り ヘッダー ＆ 操作バー -->
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3 border-slate-100">
+                <div>
+                  <h3 class="text-sm sm:text-base font-bold text-slate-900 flex items-center">
+                    <span>📅 5口座＋手許現金 日別資金繰り・口座別予測表</span>
+                    <span class="ml-2 text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">最優先機能</span>
+                  </h3>
+                  <p class="text-[11px] text-slate-500 mt-0.5">口座別の入出金予定、口座間振替（二重計上なし）、資金ショート警告、支払口座未定の管理</p>
+                </div>
+                
+                <div class="flex flex-wrap items-center gap-2">
+                  <!-- 表示切り替えトグル -->
+                  <div class="flex items-center bg-slate-100 p-1 rounded-lg text-xs font-bold border border-slate-200">
+                    <button id="btnDailyViewTotal" class="px-2.5 py-1 rounded-md bg-white text-blue-700 shadow-sm transition">全口座合計</button>
+                    <button id="btnDailyViewMatrix" class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition">口座別マトリクス</button>
+                  </div>
+
+                  <button id="btnDailyOpenTransferModal" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow transition flex items-center space-x-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                    <span>振替を登録</span>
+                  </button>
+
+                  <button id="btnDailyOpenAddTxModal" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow transition flex items-center space-x-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    <span>入出金を登録</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 口座残高インジケーター（6口座） -->
+              <div id="dailyAccountsIndicator" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
+                <!-- JSで動的に口座現在残高を表示 -->
+              </div>
+
+              <!-- 警告バナーエリア -->
+              <div id="dailyAlertsContainer" class="space-y-2"></div>
+
+              <!-- 日別資金繰りテーブル（横スクロール対応） -->
+              <div class="overflow-x-auto border border-slate-200 rounded-lg shadow-sm">
+                <table id="dailyScheduleTable" class="w-full text-xs text-left border-collapse min-w-[700px]">
+                  <!-- JSで動的に構築（全社合計ビュー / 口座別マトリクスビュー） -->
+                </table>
+              </div>
+
+              <!-- 行クリック時の明細表示 ＆ 遅延・変更アクションエリア -->
+              <div id="dailyDetailContainer" class="hidden p-3 bg-slate-50 rounded-lg border border-slate-300 text-xs space-y-2">
+                <div class="flex items-center justify-between font-bold text-slate-800">
+                  <span id="dailyDetailTitle">📅 当日の入出金・振替明細</span>
+                  <button id="btnCloseDailyDetail" class="text-slate-400 hover:text-slate-600">閉じる ✕</button>
+                </div>
+                <div id="dailyDetailItemsList" class="space-y-1.5"></div>
+              </div>
+
+            </div>
+
+            <!-- キャッシュフロー3区分（営業CF・財務CF） -->
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+              <div class="flex items-center justify-between border-b pb-2">
+                <h4 class="text-xs font-bold text-slate-700">💵 キャッシュフロー3区分分析（営業CF・財務CF・純増減）</h4>
+                <span class="text-[10px] text-slate-400">本業の現金創出力と借入返済</span>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                  <div class="text-[11px] font-bold text-emerald-800">Ⅰ. 営業活動によるCF (本業)</div>
+                  <div class="text-xl font-black text-emerald-900 mt-1" id="cfOperatingVal">¥0</div>
+                  <p class="text-[10px] text-emerald-700 mt-0.5">売上入金 − (仕入・外注・給与・経費)</p>
+                </div>
+                <div class="p-3 bg-purple-50 rounded-xl border border-purple-200">
+                  <div class="text-[11px] font-bold text-purple-800">Ⅱ. 財務活動によるCF (返済)</div>
+                  <div class="text-xl font-black text-purple-900 mt-1" id="cfFinancingVal">¥0</div>
+                  <p class="text-[10px] text-purple-700 mt-0.5">借入金元金の定期返済</p>
+                </div>
+                <div class="p-3 bg-blue-900 text-white rounded-xl shadow-sm">
+                  <div class="text-[11px] font-bold text-blue-200">Ⅲ. フリーキャッシュフロー (純増減)</div>
+                  <div class="text-xl font-black mt-1 text-white" id="cfNetVal">¥0</div>
+                  <div class="text-[10px] text-blue-200 mt-0.5" id="cfSafetyBadge">✅ 本業CFで返済を賄えています</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- ======================================================== -->
+          <!-- サブ画面 3: 従来の残高推移・未入金・明細（既存ビュー） -->
+          <!-- ======================================================== -->
+          <div id="subtab-panel-overview" class="funds-subpanel hidden space-y-4">
+
+            <!-- 基準日残高カード ＆ 3か月後見通しカード -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              
+              <!-- 基準日残高（手入力カード） -->
+              <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative">
+                <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
+                  <span class="font-semibold text-slate-700 flex items-center">
+                    <span class="w-2.5 h-2.5 rounded-full bg-blue-600 mr-1.5"></span>
+                    基準日の口座残高（手入力）
+                  </span>
+                  <button id="btnEditBankBalance" class="text-blue-600 hover:text-blue-800 font-medium underline text-xs">変更</button>
+                </div>
+                <div class="mt-2">
+                  <div class="text-xs text-slate-400" id="bankBaseDateDisplay">基準日: 2026/10/31</div>
+                  <div id="bankBaseBalanceDisplay" class="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight mt-0.5">¥4,850,000</div>
+                  <div id="bankNameDisplay" class="text-[11px] text-slate-500 mt-1 truncate">みずほ銀行 石材町支店</div>
+                </div>
+              </div>
+
+              <!-- 今後3か月の入出金予定集計 -->
+              <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                <div class="text-xs font-semibold text-slate-700 mb-1">基準日以降の入出金予定</div>
+                <div class="space-y-1.5 mt-1 text-xs">
+                  <div class="flex justify-between items-center text-emerald-700">
+                    <span class="flex items-center">
+                      <span class="w-2 h-2 rounded bg-emerald-500 mr-1.5"></span>入金予定計（未入金）:
+                    </span>
+                    <span id="summaryUnreceived" class="font-bold">+¥2,955,000</span>
+                  </div>
+                  <div class="flex justify-between items-center text-rose-700">
+                    <span class="flex items-center">
+                      <span class="w-2 h-2 rounded bg-rose-500 mr-1.5"></span>支払予定計（未払い）:
+                    </span>
+                    <span id="summaryUnpaid" class="font-bold">-¥2,645,000</span>
+                  </div>
+                  <div class="flex justify-between items-center pt-1 border-t border-slate-100 text-slate-600 font-medium">
+                    <span>予定収支差額:</span>
+                    <span id="summaryNetChange" class="font-bold text-slate-800">+¥310,000</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 3か月後 予測着地残高 ＆ 最低残高警告 -->
+              <div class="bg-gradient-to-br from-slate-900 to-blue-950 text-white p-4 rounded-xl shadow-sm flex flex-col justify-between">
+                <div>
+                  <div class="text-xs text-slate-300 font-medium flex items-center justify-between">
+                    <span>今後3か月の予測残高</span>
+                    <span class="bg-blue-500/30 text-blue-200 text-[10px] px-1.5 py-0.5 rounded">シミュレーション</span>
+                  </div>
+                  <div id="projectedFinalBalance" class="text-2xl sm:text-3xl font-black mt-2 text-white">¥5,160,000</div>
+                </div>
+                <div id="minBalanceAlert" class="mt-2 pt-2 border-t border-slate-800/80 text-[11px] text-emerald-300 flex items-center">
+                  <svg class="w-4 h-4 mr-1 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                  <span>期間中、最低残高も¥3,800,000以上をキープ見込み</span>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- 残高推移グラフ ＆ 月別サマリー -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+              <!-- グラフ（左2列） -->
+              <div class="lg:col-span-2 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <div class="flex items-center justify-between mb-2">
+                  <h3 class="text-xs sm:text-sm font-bold text-slate-800 flex items-center">
+                    <svg class="w-4 h-4 text-blue-600 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
+                    今後3か月の預金残高推移予測
+                  </h3>
+                  <span class="text-[10px] text-slate-400">※二重計上防止：基準日以降のみ集計</span>
+                </div>
+                <div class="h-48 sm:h-56 relative">
+                  <canvas id="cashFlowChart"></canvas>
+                </div>
+              </div>
+
+              <!-- 月別見通し表（右1列） -->
+              <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                <h3 class="text-xs sm:text-sm font-bold text-slate-800 mb-2">月別の入出金見通し</h3>
+                <div id="monthlySummaryContainer" class="space-y-2 text-xs">
+                  <!-- JSでレンダリング -->
+                </div>
+                <div class="text-[11px] text-slate-400 pt-2 border-t border-slate-100">
+                  ※予定が実績（振込済等）に切り替わると、即座に再計算されます。
+                </div>
+              </div>
+            </div>
+
+            <!-- 未入金・未払い クイック確認カード -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <!-- 未入金一覧（回収予定） -->
+              <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+                  <h4 class="text-xs sm:text-sm font-bold text-emerald-800 flex items-center">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 mr-1.5"></span>
+                    未入金（入金待ちの売上）
+                  </h4>
+                  <span id="unreceivedCountBadge" class="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">0件</span>
+                </div>
+                <div id="unreceivedList" class="divide-y divide-slate-100 max-h-60 overflow-y-auto">
+                  <!-- JSレンダリング -->
+                </div>
+              </div>
+
+              <!-- 未払い一覧（支払予定） -->
+              <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+                  <h4 class="text-xs sm:text-sm font-bold text-rose-800 flex items-center">
+                    <span class="w-2 h-2 rounded-full bg-rose-500 mr-1.5"></span>
+                    未払い（支払期日の控えているもの）
+                  </h4>
+                  <span id="unpaidCountBadge" class="text-xs bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full font-bold">0件</span>
+                </div>
+                <div id="unpaidList" class="divide-y divide-slate-100 max-h-60 overflow-y-auto">
+                  <!-- JSレンダリング -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 全入出金一覧 ＆ 新規登録 -->
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                <div>
+                  <h3 class="text-xs sm:text-sm font-bold text-slate-800">入出金予定・実績一覧</h3>
+                  <p class="text-[11px] text-slate-500">日付順の予定表。「予定／実績」ボタンでワンタップ切替可能です。</p>
+                </div>
+                <button id="btnOpenAddTxModal" class="flex items-center justify-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-lg shadow transition">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                  <span>入出金予定を登録</span>
+                </button>
+              </div>
+              
+              <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs text-slate-600">
+                  <thead class="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
+                    <tr>
+                      <th class="py-2.5 px-3">日付</th>
+                      <th class="py-2.5 px-2">区分</th>
+                      <th class="py-2.5 px-3">相手先 / 内容</th>
+                      <th class="py-2.5 px-3 text-right">金額</th>
+                      <th class="py-2.5 px-3 text-center">予定/実績</th>
+                      <th class="py-2.5 px-2 text-right">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="txTableBody" class="divide-y divide-slate-100">
+                    <!-- JSレンダリング -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- 3. 工事・お客様の管理 VIEW -->
+      <!-- ============================================================ -->
+      <section id="view-projects" class="view-panel hidden space-y-4">
+        
+        <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-sm sm:text-base font-bold text-slate-800">工事・お客様 案件一覧</h2>
+            <p class="text-xs text-slate-500">墓所新設・改修・戒名彫刻の進捗、Google Driveリンク、関連タスクの管理</p>
+          </div>
+          <button id="btnOpenAddProjectModal" class="flex items-center justify-center space-x-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-2 rounded-lg shadow transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            <span>新規案件を登録</span>
+          </button>
+        </div>
+
+        <!-- 案件カード一覧 -->
+        <div id="projectsListContainer" class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+          <!-- JSレンダリング -->
+        </div>
+
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- 4. 作業履歴・弥生記録 VIEW -->
+      <!-- ============================================================ -->
+      <section id="view-logs" class="view-panel hidden space-y-4">
+        
+        <!-- クイック記録バー（現場・スマホ向けワンタップ記録） -->
+        <div class="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs sm:text-sm font-bold text-slate-800 flex items-center">
+              <span class="w-2 h-2 rounded-full bg-amber-500 mr-2"></span>
+              現場・事務所のクイック作業記録
+            </h3>
+            <span class="text-[11px] text-slate-400">ワンタップで日時＆担当者を記録</span>
+          </div>
+          
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <!-- 弥生会計専用ボタン -->
+            <button id="btnOpenYayoiModal" class="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold p-2.5 rounded-lg flex items-center justify-center space-x-1.5 transition">
+              <span>📊 弥生の進捗記録</span>
+            </button>
+            <button class="quick-log-btn bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 p-2.5 rounded-lg font-medium transition" data-action="振込完了" data-category="振込・支払い">
+              <span>💳 振込手続き完了</span>
+            </button>
+            <button class="quick-log-btn bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 p-2.5 rounded-lg font-medium transition" data-action="電話・メール返信完了" data-category="返信">
+              <span>📞 お客様へ返信済</span>
+            </button>
+            <button class="quick-log-btn bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 p-2.5 rounded-lg font-medium transition" data-action="現地調査・寸法確認" data-category="現場調査">
+              <span>📐 現地寸法測定完了</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 音声入力対応 手動メモ追加フォーム -->
+        <div class="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-xs font-bold text-slate-700">作業メモ・日報の追加</h4>
+            <div class="flex items-center space-x-1 text-slate-400 text-xs">
+              <span>🎤 スマホ音声入力対応</span>
+            </div>
+          </div>
+
+          <form id="formAddActivityLog" class="space-y-2">
+            <div class="flex gap-2">
+              <input type="text" id="logActionInput" placeholder="何をしたか（例: 佐藤様へ文字校正FAX送付、骨壺サイズ確認など）" required class="flex-1 text-xs border border-slate-300 rounded-lg px-3 py-2 focus:ring-1 focus:ring-blue-500 focus:outline-none">
+              
+              <!-- 音声入力トグルボタン -->
+              <button type="button" id="btnVoiceInput" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-semibold flex items-center space-x-1 transition" title="音声認識で入力">
+                <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                <span id="voiceStatusText" class="hidden sm:inline">音声入力</span>
+              </button>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-2">
+              <textarea id="logDetailsInput" rows="2" placeholder="詳細メモ（必要に応じて寸法、連絡事項、次回やることを記載）" class="flex-1 text-xs border border-slate-300 rounded-lg px-3 py-2 focus:ring-1 focus:ring-blue-500 focus:outline-none"></textarea>
+              <div class="flex sm:flex-col justify-end gap-2">
+                <select id="logCategoryInput" class="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-slate-700">
+                  <option value="一般作業">一般作業</option>
+                  <option value="経理・弥生">経理・弥生</option>
+                  <option value="図面・見積">図面・見積</option>
+                  <option value="現場・工事">現場・工事</option>
+                  <option value="お客様対応">お客様対応</option>
+                </select>
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition whitespace-nowrap">
+                  記録する
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <!-- 履歴一覧 ＆ 検索バー -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+            <h3 class="text-xs sm:text-sm font-bold text-slate-800">時系列 作業タイムライン</h3>
+            <!-- 検索入力 -->
+            <div class="relative w-full sm:w-64">
+              <input type="text" id="logSearchInput" placeholder="キーワード・担当・弥生で検索..." class="w-full text-xs pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500">
+              <svg class="w-4 h-4 text-slate-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+          </div>
+
+          <div id="activityLogsList" class="space-y-3 relative before:absolute before:inset-0 before:left-3 sm:before:left-4 before:w-0.5 before:bg-slate-200">
+            <!-- JSレンダリング -->
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- 5. 重要メール VIEW -->
+      <!-- ============================================================ -->
+      <section id="view-emails" class="view-panel hidden space-y-4">
+        
+        <!-- 権限なし警告（3人目スタッフ用） -->
+        <div id="emailsRestrictedNotice" class="hidden bg-red-50 border border-red-200 rounded-xl p-8 text-center">
+          <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-3">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m0 0v2m0-2h2m-2 0H10m4-11a4 4 0 00-8 0v4h8V6zM5 10h14a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2z"></path></svg>
+          </div>
+          <h3 class="text-base font-bold text-slate-800">重要メールの閲覧権限がありません</h3>
+          <p class="text-xs text-slate-600 mt-1 max-w-md mx-auto">
+            取引先・寺院・お客様との重要メールは、初期状態では3人目のスタッフには共有されない設計となっています。
+          </p>
+        </div>
+
+        <div id="emailsContent" class="space-y-4">
+          
+          <div class="bg-sky-50 border border-sky-200 rounded-xl p-3 sm:p-4 text-xs text-sky-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-sm">
+            <div class="flex items-start space-x-2">
+              <svg class="w-5 h-5 text-sky-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              <div>
+                <span class="font-bold">「既読」と「対応済み」を独立管理！メールからタスク登録できます</span>
+                <p class="text-sky-800 text-[11px] mt-0.5">
+                  メールを読んだだけで返信や手配を忘れる漏れを防ぎます。ボタン1つで「今日の対応（ToDo）」に引き継げます。
+                </p>
+              </div>
+            </div>
+            <span class="text-[10px] bg-white text-sky-800 border border-sky-300 font-semibold px-2 py-1 rounded whitespace-nowrap">
+              試作：架空メール受信箱
+            </span>
+          </div>
+
+          <!-- メールリスト -->
+          <div id="emailsListContainer" class="space-y-3">
+            <!-- JSレンダリング -->
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- 6. 本運用・設定 VIEW -->
+      <!-- ============================================================ -->
+      <section id="view-settings" class="view-panel hidden space-y-4">
+
+        <!-- Google ドライブ自動アップロード連携設定 -->
+        <div class="bg-white p-4 sm:p-6 rounded-xl border border-blue-200 shadow-sm space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
+            <div class="flex items-center space-x-2">
+              <svg class="w-5 h-5 text-blue-600" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z"/></svg>
+              <h3 class="text-sm sm:text-base font-bold text-slate-900">☁️ 請求書 Google ドライブ自動アップロード連携（GAS設定）</h3>
+            </div>
+            <button type="button" id="btnToggleGDriveHelp" class="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1">
+              <span>📖 設定手順ガイド（3分）</span>
+            </button>
+          </div>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            スマホやMacで請求書写真を登録するたびに、<strong>Google ドライブの「請求書 / YYYY年MM月」フォルダへ毎回全自動で保存</strong>されます。Mac本体の容量は一切消費しません。
+          </p>
+
+          <!-- ガイド解説アコーディオン（初期は折りたたみ） -->
+          <div id="gdriveSetupHelpBox" class="hidden p-3.5 bg-blue-50/70 border border-blue-200 rounded-lg text-xs text-slate-700 space-y-2.5">
+            <h4 class="font-bold text-blue-900 flex items-center gap-1.5">
+              <span>🚀 3分で完了！Google Apps Script（GAS）設定手順</span>
+            </h4>
+            <ol class="list-decimal list-inside space-y-1.5 leading-relaxed text-slate-700 text-[11px] sm:text-xs">
+              <li>Googleドライブを開き、左上の「<strong>＋ 新規</strong>」➔「<strong>その他</strong>」➔「<strong>Google Apps Script</strong>」をクリックします。</li>
+              <li>開いたエディタの中身を全消去し、下のボタンでコピーしたコードを貼り付けます。<br>
+                <button type="button" id="btnCopyGasCode" class="mt-1 inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-blue-400 hover:bg-blue-100 rounded text-blue-700 font-bold shadow-xs">
+                  📋 GAS連携コードをクリップボードにコピー
+                </button>
+              </li>
+              <li>右上の青い「<strong>デプロイ</strong>」➔「<strong>新しいデプロイ</strong>」をクリックします。</li>
+              <li>歯車アイコン「種類の選択」で「<strong>ウェブアプリ</strong>」を選択し、以下のように設定してデプロイします：
+                <ul class="list-disc list-inside ml-3 mt-1 text-slate-600">
+                  <li>次のユーザーとして実行: <strong>自分</strong></li>
+                  <li>アクセスできるユーザー: <strong>全員</strong>（※誰でも保存可能にするため必須）</li>
+                </ul>
+              </li>
+              <li>画面に表示される「<strong>ウェブアプリのURL</strong>」をコピーし、下の入力欄に貼り付けて「URLを保存」を押せば完了です！</li>
+            </ol>
+          </div>
+
+          <div class="space-y-2 text-xs">
+            <label class="block font-bold text-slate-700">Google Apps Script (GAS) ウェブアプリURL</label>
+            <div class="flex flex-col sm:flex-row gap-2">
+              <input type="url" id="settingGDriveGasUrl" placeholder="https://script.google.com/macros/s/.../exec" class="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500">
+              <div class="flex gap-2">
+                <button type="button" id="btnSaveGDriveGasUrl" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs whitespace-nowrap shadow transition">
+                  URLを保存
+                </button>
+                <button type="button" id="btnTestGDriveGasUrl" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-bold rounded-lg text-xs whitespace-nowrap transition flex items-center gap-1">
+                  <span>⚡ 接続テスト</span>
+                </button>
+              </div>
+            </div>
+            <div id="gdriveTestStatus" class="hidden p-2 rounded text-[11px] font-medium"></div>
+            <p class="text-[10px] text-slate-500">※URLを一度設定すれば、変更のたびにGoogleドライブへ全自動バックアップ＆同期されます。</p>
+
+            <!-- Googleドライブ手動同期操作ボタン -->
+            <div class="pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+              <div class="text-[11px] text-slate-500">
+                最終同期: <span id="labelLastGDriveSync" class="font-bold text-slate-700">未同期</span>
+              </div>
+              <div class="flex gap-2">
+                <button type="button" id="btnManualSyncToGDrive" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1">
+                  <span>☁️ 今すぐGoogleドライブへ保存</span>
+                </button>
+                <button type="button" id="btnManualSyncFromGDrive" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1">
+                  <span>🔄 最新データを読込</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 外出先用 セキュリティ暗証番号（PINコード）設定 -->
+        <div class="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-sm space-y-3">
+          <div class="flex items-center space-x-2 border-b border-slate-200 pb-2.5">
+            <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+            <h3 class="text-sm sm:text-base font-bold text-slate-900">🔒 外出先用 暗証番号（画面ロックPINコード）</h3>
+          </div>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            ご主人が現場やトラック、外出先でスマホから開く際、第三者に通帳残高が見られないよう、アプリ起動時に暗証番号（4〜8桁）を要求します。
+          </p>
+          <div class="space-y-2 text-xs">
+            <label class="block font-bold text-slate-700">暗証番号（未設定時はロックなしで開きます）</label>
+            <div class="flex gap-2 max-w-sm">
+              <input type="password" id="settingSecurityPin" placeholder="4〜8桁の数字（例: 1234）" maxlength="8" class="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono tracking-widest focus:outline-none focus:ring-1 focus:ring-amber-500">
+              <button type="button" id="btnSaveSecurityPin" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs whitespace-nowrap shadow transition">
+                設定保存
+              </button>
+              <button type="button" id="btnClearSecurityPin" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-lg text-xs whitespace-nowrap transition">
+                解除
+              </button>
+            </div>
+            <p id="securityPinStatusText" class="text-[11px] font-bold text-slate-500"></p>
+          </div>
+        </div>
+
+        
+        <!-- 本運用への移行ガイド -->
+        <div class="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+          <div class="border-b border-slate-200 pb-3">
+            <h2 class="text-base sm:text-lg font-bold text-slate-800">試作版と本運用（複数端末共有・権限制御）の違い</h2>
+            <p class="text-xs text-slate-500 mt-1">実データ移行・有料サービス契約・外部公開をスムーズに行うための提案仕様</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs leading-relaxed">
+            
+            <!-- 試作版の仕組み -->
+            <div class="p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <span class="font-bold text-slate-800 flex items-center mb-1">
+                <span class="w-2.5 h-2.5 rounded-full bg-slate-400 mr-2"></span>
+                現在の試作版（端末内保存 / LocalStorage）
+              </span>
+              <ul class="list-disc list-inside text-slate-600 space-y-1 text-[11px]">
+                <li>データはお使いのスマホ・PCのブラウザ内部にのみ保存されます。</li>
+                <li>外部通信・サーバー契約・課金は一切発生しません。</li>
+                <li>「夫のスマホで入力した内容が私のPCに即時反映される」共有はまだ行われません。</li>
+                <li>権限制御は画面切り替えの体験用モックです。</li>
+              </ul>
+            </div>
+
+            <!-- 本運用の仕組み -->
+            <div class="p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <span class="font-bold text-blue-900 flex items-center mb-1">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-600 mr-2"></span>
+                本運用で目指す姿（クラウド安全同期 / RLS）
+              </span>
+              <ul class="list-disc list-inside text-blue-800 space-y-1 text-[11px]">
+                <li>安全なクラウドDB（Supabase等）で複数端末がリアルタイム同期。</li>
+                <li>個別ログイン（私・夫・3人目）と多要素認証。</li>
+                <li><strong>厳格な権限制御（RLS: 行レベルセキュリティ）</strong>により、3人目の端末には画面隠しだけでなく、通信データ自体が届かない完全な情報隔離。</li>
+                <li>自動バックアップと暗号化通信。</li>
+              </ul>
+            </div>
+
+          </div>
+
+          <!-- データ管理（リセット・エクスポート・インポート） -->
+          <div class="pt-4 border-t border-slate-200">
+            <h3 class="text-xs sm:text-sm font-bold text-slate-800 mb-2">試作データの管理</h3>
+            <div class="flex flex-wrap gap-2 text-xs">
+              <button id="btnExportData" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded-lg border border-slate-300 flex items-center space-x-1.5 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                <span>データ保存（JSON書出）</span>
+              </button>
+              
+              <label class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded-lg border border-slate-300 flex items-center space-x-1.5 cursor-pointer transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                <span>データ復元（JSON読込）</span>
+                <input type="file" id="importFileInput" accept=".json" class="hidden">
+              </label>
+
+              <button id="btnResetData" class="bg-red-50 hover:bg-red-100 text-red-700 font-semibold px-3 py-2 rounded-lg border border-red-200 flex items-center space-x-1.5 ml-auto transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                <span>初期サンプルデータに戻す</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- モバイル専用 下部固定ボトムナビゲーション -->
+  <!-- ============================================================== -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 shadow-lg bottom-nav">
+    <div class="grid grid-cols-5 h-14">
+      
+      <button class="nav-tab-btn active flex flex-col items-center justify-center text-blue-600 relative touch-target" data-view="home">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+        <span class="text-[10px] mt-0.5 font-bold">今日</span>
+        <span id="badgeOverdueMobile" class="absolute top-1 right-3 bg-red-600 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold hidden">0</span>
+      </button>
+
+      <button id="bottomNavFunds" class="nav-tab-btn flex flex-col items-center justify-center text-slate-500 hover:text-slate-800 touch-target" data-view="funds">
+        <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span class="text-[10px] mt-0.5 font-medium">お金</span>
+      </button>
+
+      <button class="nav-tab-btn flex flex-col items-center justify-center text-slate-500 hover:text-slate-800 touch-target" data-view="projects">
+        <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+        <span class="text-[10px] mt-0.5 font-medium">工事</span>
+      </button>
+
+      <button class="nav-tab-btn flex flex-col items-center justify-center text-slate-500 hover:text-slate-800 touch-target" data-view="logs">
+        <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span class="text-[10px] mt-0.5 font-medium">履歴</span>
+      </button>
+
+      <button id="bottomNavEmails" class="nav-tab-btn flex flex-col items-center justify-center text-slate-500 hover:text-slate-800 relative touch-target" data-view="emails">
+        <svg class="w-5 h-5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+        <span class="text-[10px] mt-0.5 font-medium">メール</span>
+        <span id="badgeUnprocessedEmailsMobile" class="absolute top-1 right-3 bg-amber-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold">2</span>
+      </button>
+
+    </div>
+  </nav>
+
+  <!-- モバイル用 クイックタスク追加 Floating Action Button (FAB) -->
+  <button id="btnMobileFabAddTask" class="sm:hidden fixed bottom-20 right-4 z-40 bg-blue-600 hover:bg-blue-700 text-white w-13 h-13 rounded-full shadow-lg flex items-center justify-center touch-target p-3">
+    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+  </button>
+
+  <!-- ============================================================== -->
+  <!-- モーダル集 -->
+  <!-- ============================================================== -->
+
+  <!-- 1. タスク追加・編集モーダル -->
+  <div id="modalTask" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b pb-3">
+        <h3 id="modalTaskTitle" class="text-base font-bold text-slate-800">今日の対応・タスク追加</h3>
+        <button class="modal-close-btn text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <form id="formTask" class="space-y-3 text-xs">
+        <input type="hidden" id="taskEditId">
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">対応内容・仕事名 <span class="text-red-500">*</span></label>
+          <input type="text" id="taskInputTitle" required placeholder="例: 東日本石材へ石材代金の振込、佐藤様へ戒名文字確認の電話など" class="w-full border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">種別（カテゴリ）</label>
+            <select id="taskInputCategory" class="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white">
+              <option value="支払い">支払い（振込・仕入等）</option>
+              <option value="返信">返信（電話・メール・LINE）</option>
+              <option value="工事準備">工事準備（生コン・道具・届出）</option>
+              <option value="経理作業">経理作業（弥生・請求書発行等）</option>
+              <option value="その他">その他</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">担当者</label>
+            <select id="taskInputAssignee" class="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white">
+              <option value="私">私（経理・図面）</option>
+              <option value="夫">夫（現場・工事）</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">対応期限 <span class="text-red-500">*</span></label>
+            <input type="date" id="taskInputDueDate" required class="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none">
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">関連する工事・案件</label>
+            <select id="taskInputProject" class="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white">
+              <option value="">なし（単独作業）</option>
+              <!-- JSで動的に追加 -->
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">次にすること（作業メモ）</label>
+          <textarea id="taskInputNextAction" rows="2" placeholder="具体的に何をするか（例: ネットバンキングを開いて送金、領収書PDFを保存）" class="w-full border border-slate-300 rounded-lg p-2 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"></textarea>
+        </div>
+
+        <div class="pt-2 flex justify-end space-x-2 border-t">
+          <button type="button" class="modal-close-btn px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition">キャンセル</button>
+          <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow transition">保存する</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. 口座残高＆基準日 変更モーダル -->
+  <div id="modalBank" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b pb-3">
+        <h3 class="text-base font-bold text-slate-800">口座残高・基準日の手入力</h3>
+        <button class="modal-close-btn text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <form id="formBank" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">基準日（通帳やネット銀行を確認した日）</label>
+          <input type="date" id="bankInputBaseDate" required class="w-full border border-slate-300 rounded-lg p-2.5 text-xs focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">その日時点の口座残高（円）</label>
+          <div class="relative">
+            <span class="absolute left-3 top-2.5 text-slate-400 font-bold">¥</span>
+            <input type="number" id="bankInputBaseBalance" required min="0" step="1" class="w-full border border-slate-300 rounded-lg pl-7 pr-3 py-2 text-sm font-bold focus:outline-none focus:ring-1 focus:ring-blue-500">
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1">※この基準日より後の入出金のみをシミュレーションに加算します（過去分の二重計上を防ぎます）。</p>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">銀行・口座メモ</label>
+          <input type="text" id="bankInputBankName" class="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none">
+        </div>
+
+        <div class="pt-2 flex justify-end space-x-2 border-t">
+          <button type="button" class="modal-close-btn px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition">キャンセル</button>
+          <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow transition">残高を更新</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. 入出金予定・実績 登録モーダル -->
+  <div id="modalTx" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b pb-3">
+        <h3 id="modalTxTitle" class="text-base font-bold text-slate-800">入金・支払予定の登録</h3>
+        <button class="modal-close-btn text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <form id="formTx" class="space-y-3 text-xs">
+        <input type="hidden" id="txEditId">
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">区分（入金 / 支払）</label>
+            <select id="txInputType" class="w-full border border-slate-300 rounded-lg p-2 text-xs font-bold bg-white">
+              <option value="expense">支払（石材仕入・給与・外注など）</option>
+              <option value="income">入金（工事着工金・完工代金など）</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">予定日 / 支払日 <span class="text-red-500">*</span></label>
+            <input type="date" id="txInputDate" required class="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">相手先（業者名・お客様名・寺院名） <span class="text-red-500">*</span></label>
+          <input type="text" id="txInputPartner" required placeholder="例: 東日本石材、佐藤正雄様、中川建材など" class="w-full border border-slate-300 rounded-lg p-2.5 text-xs focus:outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">金額（円） <span class="text-red-500">*</span></label>
+            <div class="relative">
+              <span class="absolute left-3 top-2 text-slate-400 font-bold">¥</span>
+              <input type="number" id="txInputAmount" required min="1" step="1" placeholder="500000" class="w-full border border-slate-300 rounded-lg pl-7 pr-3 py-1.5 text-sm font-bold focus:outline-none">
+            </div>
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">勘定科目・費目 <span class="text-red-500">*</span></label>
+            <select id="txInputCategory" required class="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium">
+              <!-- JSで動的に設定 -->
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">関連案件</label>
+            <select id="txInputProject" class="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white">
+              <option value="">なし（共通経費・単発）</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">状態（予定 / 実績）</label>
+            <select id="txInputIsActual" class="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white font-medium">
+              <option value="false">予定（未入金 / 未払い）</option>
+              <option value="true">実績（振込済 / 入金確認済）</option>
+            </select>
+          </div>
+        </div>
+
+        
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">出金・入金口座 <span class="text-xs text-slate-500 font-normal">（支払口座は自動決定せず本人が指定／未定でも登録可能）</span></label>
+          <select id="txInputAccount" class="w-full border border-slate-300 rounded-lg p-2.5 text-xs bg-white font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500">
+            <option value="bank-1">中京銀行（当座預金 / 主口座）</option>
+            <option value="bank-2">十六銀行（普通預金）</option>
+            <option value="bank-3">ゆうちょ銀行</option>
+            <option value="bank-4">大垣共立銀行（普通預金）</option>
+            <option value="bank-5">JAバンク（普通預金）</option>
+            <option value="cash">手許現金</option>
+            <option value="unassigned" class="text-rose-600 font-bold">⚠️ 支払口座：未定（未配分支払予定として警告管理）</option>
+          </select>
+          <p class="text-[10px] text-slate-500 mt-0.5">※口座未定のまま登録した支払いは、警告が表示され口座別予測の未配分額として管理されます。</p>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">備考・詳細</label>
+          <input type="text" id="txInputNote" placeholder="メモがあれば記入" class="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none">
+        </div>
+
+        <div class="pt-2 flex justify-end space-x-2 border-t">
+          <button type="button" class="modal-close-btn px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition">キャンセル</button>
+          <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow transition">保存する</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. 工事・お客様案件 追加・編集モーダル -->
+  <div id="modalProject" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b pb-3">
+        <h3 id="modalProjectTitle" class="text-base font-bold text-slate-800">工事・お客様案件の登録</h3>
+        <button class="modal-close-btn text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <form id="formProject" class="space-y-3 text-xs">
+        <input type="hidden" id="projEditId">
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">案件名 <span class="text-red-500">*</span></label>
+          <input type="text" id="projInputName" required placeholder="例: 佐藤家 墓所新規建立工事（洋型・黒御影）" class="w-full border border-slate-300 rounded-lg p-2.5 text-xs focus:outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">お客様・施主名</label>
+            <input type="text" id="projInputCustomer" placeholder="例: 佐藤 正雄 様" class="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">墓所・現場場所</label>
+            <input type="text" id="projInputLocation" placeholder="例: 青山霊園 2区3号" class="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">工事予定日・工期</label>
+            <input type="text" id="projInputSchedule" placeholder="例: 2026-11-05 〜 12-10" class="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">担当者</label>
+            <input type="text" id="projInputAssignee" placeholder="例: 夫（現場）・私（図面）" class="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">進捗状況</label>
+            <select id="projInputStatus" class="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white font-medium">
+              <option value="inquiry">相談・現地調査中</option>
+              <option value="drawing">見積・図面作成中</option>
+              <option value="contracted">契約済・石材手配中</option>
+              <option value="carving">文字彫刻・工場加工中</option>
+              <option value="construction">現地施工・基礎据付中</option>
+              <option value="completed">完工・納骨引き渡し完了</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">契約・見積金額（円）</label>
+            <input type="number" id="projInputContractAmount" placeholder="1700000" class="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">次の作業・アクション</label>
+          <input type="text" id="projInputNextAction" placeholder="例: 11/5 基礎生コン打設、霊園養生計画書の提出" class="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none">
+        </div>
+
+        <!-- Google Drive リンク -->
+        <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+          <div class="font-bold text-slate-700 text-xs flex items-center">
+            <svg class="w-4 h-4 text-blue-600 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+            Google Driveリンクの登録
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <input type="url" id="projInputDriveDrawing" placeholder="図面フォルダのURL" class="border border-slate-300 rounded p-1.5 text-xs bg-white">
+            <input type="url" id="projInputDriveEstimate" placeholder="見積書フォルダのURL" class="border border-slate-300 rounded p-1.5 text-xs bg-white">
+            <input type="url" id="projInputDriveInvoice" placeholder="請求書フォルダのURL" class="border border-slate-300 rounded p-1.5 text-xs bg-white">
+            <input type="url" id="projInputDrivePhotos" placeholder="現場写真フォルダのURL" class="border border-slate-300 rounded p-1.5 text-xs bg-white">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">特記事項・備考</label>
+          <textarea id="projInputNote" rows="2" placeholder="お客様の要望、家紋、正面文字、法要日など" class="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none"></textarea>
+        </div>
+
+        <div class="pt-2 flex justify-end space-x-2 border-t">
+          <button type="button" class="modal-close-btn px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition">キャンセル</button>
+          <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow transition">保存する</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 5. 案件詳細・連携モーダル（関連タスク・入出金・履歴） -->
+  <div id="modalProjectDetail" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl max-w-2xl w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b pb-3">
+        <div>
+          <span id="detailProjStatusBadge" class="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded font-bold">契約済</span>
+          <h3 id="detailProjName" class="text-base sm:text-lg font-bold text-slate-800 mt-1">佐藤家 墓所新規建立工事</h3>
+        </div>
+        <button class="modal-close-btn text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        <!-- 基本情報グリッド -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+          <div>
+            <div class="text-[10px] text-slate-400">施主様</div>
+            <div id="detailProjCustomer" class="font-bold text-slate-800">-</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-400">場所</div>
+            <div id="detailProjLocation" class="font-bold text-slate-800">-</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-400">工期</div>
+            <div id="detailProjSchedule" class="font-bold text-slate-800">-</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-400">契約金額</div>
+            <div id="detailProjAmount" class="font-bold text-emerald-700">-</div>
+          </div>
+        </div>
+
+        <!-- Google Drive リンクボタン集 -->
+        <div>
+          <div class="font-bold text-slate-700 mb-1.5 flex items-center">
+            <svg class="w-4 h-4 text-blue-600 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+            Google Drive 資料
+          </div>
+          <div id="detailDriveLinks" class="flex flex-wrap gap-2">
+            <!-- JSでボタン生成 -->
+          </div>
+        </div>
+
+        <!-- ひもづく「今日の対応・タスク」 -->
+        <div class="border-t pt-3">
+          <h4 class="font-bold text-slate-800 mb-2 flex items-center justify-between">
+            <span>この案件の関連作業（タスク）</span>
+          </h4>
+          <div id="detailRelatedTasks" class="space-y-1.5">
+            <!-- JS生成 -->
+          </div>
+        </div>
+
+        <!-- ひもづく「入出金予定」 -->
+        <div class="border-t pt-3">
+          <h4 class="font-bold text-slate-800 mb-2 flex items-center justify-between">
+            <span>この案件の入金・支払予定</span>
+          </h4>
+          <div id="detailRelatedTx" class="space-y-1.5">
+            <!-- JS生成 -->
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-3 border-t flex justify-end">
+        <button type="button" class="modal-close-btn px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-xs">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. 弥生会計 専用記録モーダル -->
+  <div id="modalYayoi" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b pb-3">
+        <div class="flex items-center space-x-2">
+          <span class="text-xl">📊</span>
+          <h3 class="text-base font-bold text-slate-800">弥生会計の入力進捗を記録</h3>
+        </div>
+        <button class="modal-close-btn text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <form id="formYayoi" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">対象月 <span class="text-red-500">*</span></label>
+          <select id="yayoiInputMonth" class="w-full border border-slate-300 rounded-lg p-2.5 text-xs bg-white font-medium">
+            <option value="2026年10月分">2026年10月分</option>
+            <option value="2026年9月分" selected>2026年9月分</option>
+            <option value="2026年8月分">2026年8月分</option>
+            <option value="2026年7月分以前">2026年7月分以前</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">資料の種類 <span class="text-red-500">*</span></label>
+          <input type="text" id="yayoiInputDocType" required placeholder="例: 銀行通帳コピー、カード明細、領収書綴り" value="銀行通帳・クレジットカード明細" class="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">今回完了した範囲 <span class="text-red-500">*</span></label>
+          <input type="text" id="yayoiInputCompletedRange" required placeholder="例: 通帳出納帳の全額記帳完了、現金領収書の前半" class="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">残作業・夫への確認事項</label>
+          <textarea id="yayoiInputRemaining" rows="2" placeholder="例: ホームセンター購入分の領収書1枚の勘定科目を夫に確認、東日本石材の請求書原本待ち" class="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none"></textarea>
+        </div>
+
+        <div class="pt-2 flex justify-end space-x-2 border-t">
+          <button type="button" class="modal-close-btn px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition">キャンセル</button>
+          <button type="submit" class="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg shadow transition">作業履歴に記録</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 7. メール詳細 ＆ タスク化モーダル -->
+  <div id="modalEmailDetail" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b pb-3">
+        <div>
+          <div class="text-[10px] text-slate-400" id="modalMailSender">東日本石材</div>
+          <h3 id="modalMailSubject" class="text-base font-bold text-slate-800 mt-0.5">【納期回答】佐藤様邸 外柵材について</h3>
+        </div>
+        <button class="modal-close-btn text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div class="flex flex-wrap items-center gap-2 text-slate-500">
+          <span id="modalMailDate">受信: 2026-10-30 17:15</span>
+          <span class="text-slate-300">|</span>
+          <span id="modalMailDueDate" class="text-red-600 font-bold">期限: 2026-11-02</span>
+          <span class="text-slate-300">|</span>
+          <span id="modalMailAssignee">担当: 私</span>
+        </div>
+
+        <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-slate-700 whitespace-pre-wrap leading-relaxed text-xs" id="modalMailBody">
+          <!-- メール本文 -->
+        </div>
+
+        <!-- ワンクリック タスク化エリア -->
+        <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-bold text-blue-900">このメールから作業（タスク）を登録</span>
+            <span class="text-[10px] text-blue-700">ホームのToDoに自動連携</span>
+          </div>
+          <button id="btnCreateTaskFromModalMail" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg text-xs shadow flex items-center justify-center space-x-1.5 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+            <span>ホームの「今日の対応」に登録する</span>
+          </button>
+        </div>
+
+        <div class="flex items-center justify-between pt-2">
+          <a id="modalMailLink" href="#" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline flex items-center space-x-1">
+            <span>Gmailで開く（ダミー）</span>
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+          </a>
+          <button type="button" class="modal-close-btn px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition">閉じる</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. スマホ接続用 QRコード表示モーダル -->
+  <div id="modalQr" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl text-center space-y-3">
+      <div class="flex items-center justify-between border-b pb-2">
+        <h3 class="text-sm font-bold text-slate-800 flex items-center">
+          <span class="mr-1.5">📱</span> スマホから開く
+        </h3>
+        <button class="modal-close-btn text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+      
+      <p class="text-xs text-slate-600">
+        Macと同じWi-Fiに接続したスマートフォンの<strong>カメラアプリで下のQRコードを読み取る</strong>と、すぐに開けます。
+      </p>
+
+      <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl inline-block">
+        <img id="qrCodeImg" src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=http://192.168.3.70:8080" alt="スマホ用QRコード" class="w-44 h-44 mx-auto rounded">
+      </div>
+
+      <div class="text-[11px] text-slate-500 bg-slate-100 p-2 rounded border border-slate-200">
+        URL直接入力の場合:<br>
+        <span id="qrCodeText" class="font-mono font-bold text-blue-700 select-all">http://192.168.3.71:8080</span>
+      </div>
+
+      <div class="pt-1">
+        <button type="button" class="modal-close-btn w-full py-2 bg-slate-800 text-white font-bold text-xs rounded-lg hover:bg-slate-700 transition">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  
+  <!-- ============================================================== -->
+  <!-- 新設モーダル群（5銀行＋手許現金、振替、期日変更・遅延、財務三表） -->
+  <!-- ============================================================== -->
+
+  <!-- A. 6口座残高・口座名・基準日設定モーダル -->
+  <div id="modalAccounts" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b pb-3">
+        <h3 class="text-base font-bold text-slate-800 flex items-center">
+          <span class="mr-1.5">🏦</span> 5つの銀行口座＋手許現金（計6口座）の設定
+        </h3>
+        <button class="modal-close-btn text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-600">
+        通帳やネットバンキングで確認した各口座の<strong>基準日時点の残高</strong>を登録します。この日以降の入出金・振替が日別資金繰り表に反映されます。
+      </p>
+
+      <form id="formAccounts" class="space-y-3 text-xs">
+        <div id="accountsFormContainer" class="space-y-3">
+          <!-- JSで6口座それぞれの編集欄を動的に生成 -->
+        </div>
+
+        <div class="pt-3 flex justify-end space-x-2 border-t">
+          <button type="button" class="modal-close-btn px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition">キャンセル</button>
+          <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow transition">残高を保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- B. 口座間振替モーダル（二重計上なし） -->
+  <div id="modalTransfer" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b pb-3">
+        <h3 class="text-base font-bold text-slate-800 flex items-center">
+          <span class="mr-1.5">🔄</span> 口座間振替の登録（資金移動）
+        </h3>
+        <button class="modal-close-btn text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <div class="bg-blue-50 border-l-4 border-blue-600 p-2.5 rounded-r-lg text-[11px] text-blue-900">
+        💡 口座間の振替は、出金元から引かれ入金先へ加算されます。<strong>全口座合計の資金残高では相殺され、二重計上されません。</strong>
+      </div>
+
+      <form id="formTransfer" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">振替日（予定日 / 実行日） <span class="text-red-500">*</span></label>
+          <input type="date" id="trInputDate" required class="w-full border border-slate-300 rounded-lg p-2.5 text-xs focus:outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-bold text-rose-700 mb-1">出金元 口座 <span class="text-red-500">*</span></label>
+            <select id="trInputFrom" required class="w-full border border-rose-300 rounded-lg p-2 text-xs bg-rose-50/40 font-bold text-rose-900 focus:outline-none">
+              <!-- JSで動的生成 -->
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-emerald-700 mb-1">入金先 口座 <span class="text-red-500">*</span></label>
+            <select id="trInputTo" required class="w-full border border-emerald-300 rounded-lg p-2 text-xs bg-emerald-50/40 font-bold text-emerald-900 focus:outline-none">
+              <!-- JSで動的生成 -->
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">振替金額（円） <span class="text-red-500">*</span></label>
+          <div class="relative">
+            <span class="absolute left-3 top-2.5 text-slate-400 font-bold">¥</span>
+            <input type="number" id="trInputAmount" required min="1" step="1" placeholder="300000" class="w-full border border-slate-300 rounded-lg pl-7 pr-3 py-2 text-sm font-bold focus:outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">状態</label>
+            <select id="trInputIsActual" class="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white font-medium">
+              <option value="false">振替予定（未実行）</option>
+              <option value="true">振替済み（実行済実績）</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">振替目的・メモ</label>
+            <input type="text" id="trInputNote" placeholder="例: 給料・公庫返済の準備" class="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none">
+          </div>
+        </div>
+
+        <div class="pt-3 flex justify-end space-x-2 border-t">
+          <button type="button" class="modal-close-btn px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition">キャンセル</button>
+          <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow transition">振替を登録</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- C. 入金遅延・期日変更モーダル -->
+  <div id="modalDelayTx" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-4 sm:p-5 shadow-2xl space-y-3 text-xs">
+      <div class="flex items-center justify-between border-b pb-2">
+        <h3 class="text-sm font-bold text-slate-800 flex items-center">
+          <span class="mr-1.5">⏱️</span> 入金遅延・支払予定日の変更
+        </h3>
+        <button class="modal-close-btn text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <div class="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+        <div class="text-[10px] text-slate-500" id="delayModalPartner">相手先</div>
+        <div class="font-bold text-slate-800 text-xs mt-0.5" id="delayModalTitle">案件名・内容</div>
+        <div class="text-xs text-blue-700 font-bold mt-1" id="delayModalAmount">¥0</div>
+        <div class="text-[10px] text-slate-500 mt-0.5">現在の予定日: <span id="delayModalCurrentDate" class="font-bold text-slate-700"></span></div>
+      </div>
+
+      <form id="formDelayTx" class="space-y-2.5">
+        <input type="hidden" id="delayModalTxId">
+
+        <!-- クイック延長ボタン -->
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">クイック指定</label>
+          <div class="flex items-center space-x-1.5">
+            <button type="button" class="btn-quick-delay px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold" data-days="7">+7日延期</button>
+            <button type="button" class="btn-quick-delay px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold" data-days="14">+14日延期</button>
+            <button type="button" class="btn-quick-delay px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold" data-days="30">+1か月延期</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">変更後の新しい予定日 <span class="text-red-500">*</span></label>
+          <input type="date" id="delayInputNewDate" required class="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">出金口座の設定（未定からの決定も可能）</label>
+          <select id="delayInputAccount" class="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white font-medium">
+            <option value="bank-1">中京銀行</option>
+            <option value="bank-2">十六銀行</option>
+            <option value="bank-3">ゆうちょ銀行</option>
+            <option value="bank-4">大垣共立銀行</option>
+            <option value="bank-5">JAバンク</option>
+            <option value="cash">手許現金</option>
+            <option value="unassigned">⚠️ 口座未定のまま</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">変更理由・メモ</label>
+          <input type="text" id="delayInputReason" placeholder="例: 施主様ご都合、部材納期変更など" class="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none">
+        </div>
+
+        <div class="pt-2 flex justify-end space-x-2 border-t">
+          <button type="button" class="modal-close-btn px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition">キャンセル</button>
+          <button type="submit" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow transition">期日を変更反映</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- D. 財務三表（B/S・P/L・C/F）クイック閲覧モーダル -->
+  <div id="modalBSPL" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl max-w-4xl w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b pb-3">
+        <div>
+          <h3 class="text-base font-bold text-slate-900 flex items-center">
+            <span>📑 中川石材 財務三表（B/S・P/L・C/F）</span>
+            <span class="ml-2 text-[10px] bg-sky-100 text-sky-800 px-2 py-0.5 rounded font-bold">弥生会計基準</span>
+          </h3>
+          <p class="text-[11px] text-slate-500 mt-0.5">利益と手元資金の違い、および営業・投資・財務の各キャッシュフローを統合可視化</p>
+        </div>
+        <button class="modal-close-btn text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <!-- 三表タブ切り替え -->
+      <div class="flex items-center space-x-2 border-b text-xs font-bold pb-2">
+        <button id="bsplTabPL" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white shadow-sm">1. 損益計算書 (P/L)</button>
+        <button id="bsplTabBS" class="px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100">2. 貸借対照表 (B/S)</button>
+        <button id="bsplTabCF" class="px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100">3. キャッシュフロー計算書 (C/F)</button>
+      </div>
+
+      <div id="bsplContentArea" class="text-xs space-y-3">
+        <!-- JSでP/L, B/S, C/Fの表をレンダリング -->
+      </div>
+
+      <div class="pt-2 flex justify-end border-t">
+        <button type="button" class="modal-close-btn px-4 py-1.5 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-700 transition">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  
+  <!-- E. 弥生会計 CSV取り込みモーダル -->
+  <div id="modalYayoiImport" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b pb-3">
+        <h3 class="text-base font-bold text-slate-900 flex items-center">
+          <span class="mr-1.5">📥</span> やよいの青色申告オンライン CSV取り込み
+        </h3>
+        <button class="modal-close-btn text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <div class="text-xs text-slate-600 space-y-1">
+        <p>「やよいの青色申告オンライン」からエクスポートした<strong>仕訳日記帳CSV</strong>を取り込みます。</p>
+        <p class="text-[11px] text-slate-500">・5銀行口座＋手許現金の残高と仕訳を自動更新<br>・仕訳番号や日付・金額による<strong>二重取り込み防止</strong><br>・財務三表（B/S・P/L・C/F）を即座に再計算</p>
+      </div>
+
+      <!-- 取り込み方法の切り替えタブ -->
+      <div class="flex items-center space-x-2 border-b text-xs font-bold pb-2">
+        <button type="button" id="yayoiTabFile" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white shadow-sm font-bold">
+          📁 ファイルをドロップ / 選択
+        </button>
+        <button type="button" id="yayoiTabPaste" class="px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100 font-medium">
+          📋 テキストを直接貼り付け（コピペ）
+        </button>
+      </div>
+
+      <!-- 方法1: ドラッグ＆ドロップエリア -->
+      <div id="yayoiAreaFile" class="space-y-2">
+        <div id="yayoiDropZone" class="border-2 border-dashed border-indigo-300 hover:border-indigo-500 rounded-xl p-6 text-center bg-indigo-50/40 hover:bg-indigo-50 transition cursor-pointer space-y-2">
+          <svg class="w-10 h-10 text-indigo-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+          <div class="font-bold text-slate-800 text-xs">弥生からダウンロードしたCSVファイルをここにドラッグ＆ドロップ</div>
+          <p class="text-[10px] text-slate-500">または下のボタンからファイルを選択</p>
+          <input type="file" id="yayoiFileInput" accept=".csv,text/csv" class="hidden">
+          <button type="button" onclick="document.getElementById('yayoiFileInput').click()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm transition inline-block">
+            CSVファイルを選択
+          </button>
+        </div>
+      </div>
+
+      <!-- 方法2: テキスト直接貼り付け（コピペ）エリア -->
+      <div id="yayoiAreaPaste" class="hidden space-y-2">
+        <p class="text-[11px] text-slate-500">
+          弥生のCSVをExcelやメモ帳で開き、文字をコピーして下の枠にそのまま貼り付けてください。
+        </p>
+        <textarea id="yayoiPasteText" rows="6" placeholder="ここに弥生CSVの文字を貼り付け（Cmd+V / Ctrl+V）してください&#10;例:&#10;取引日,借方勘定科目,借方金額,貸方勘定科目,貸方金額,摘要..." class="w-full border border-slate-300 rounded-xl p-3 text-xs font-mono bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"></textarea>
+        <button type="button" id="btnProcessYayoiPaste" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 rounded-lg shadow transition">
+          貼り付けたデータを取り込む
+        </button>
+      </div>
+
+      <!-- デモ用サンプル取り込みボタン -->
+      <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+        <div>
+          <div class="font-bold text-slate-800 text-xs">🧪 サンプルデータで試す</div>
+          <div class="text-[10px] text-slate-500">手元に弥生のCSVがない場合、石材店サンプル仕訳を一発読み込み</div>
+        </div>
+        <button type="button" id="btnLoadSampleYayoi" class="bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-bold px-3 py-1.5 rounded-lg transition border border-slate-700 shadow-sm">
+          サンプル読込
+        </button>
+      </div>
+
+      <!-- 取り込み結果ステータスエリア -->
+      <div id="yayoiImportResultArea" class="hidden p-3.5 rounded-xl border text-xs space-y-1.5">
+        <!-- JSで動的に表示 -->
+      </div>
+
+      <div class="pt-2 flex justify-end border-t">
+        <button type="button" class="modal-close-btn px-4 py-2 bg-slate-800 text-white font-bold rounded-lg text-xs hover:bg-slate-700 transition">
+          閉じる
+        </button>
+      </div>
+    </div>
+  </div>
+
+  
+  <!-- ============================================================== -->
+  <!-- Misoca連携 ＆ 未回収金管理モーダル群 -->
+  <!-- ============================================================== -->
+
+  <!-- F. 未回収請求書（売掛金）一覧 ＆ 入金消込モーダル -->
+  <div id="modalUncollectedInvoices" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b pb-3">
+        <div>
+          <h3 class="text-base font-bold text-slate-900 flex items-center">
+            <span>📑 未回収の請求書・売掛金一覧（Misoca連携）</span>
+            <span class="ml-2 text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-bold">入金消込・二重計上防止</span>
+          </h3>
+          <p class="text-[11px] text-slate-500 mt-0.5">請求書ごとの入金期日、一部入金対応、口座着金の実績化</p>
+        </div>
+        <button class="modal-close-btn text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <!-- サマリーバー -->
+      <div class="bg-gradient-to-r from-amber-500 to-amber-600 text-white p-3.5 rounded-xl flex items-center justify-between shadow-sm">
+        <div>
+          <div class="text-[11px] text-amber-100 font-bold">現在の未回収売掛金 総額</div>
+          <div id="uncollectedModalTotalSum" class="text-2xl font-black mt-0.5">¥0</div>
+        </div>
+        <div class="text-right text-[11px] text-amber-100">
+          <div>未回収件数: <strong id="uncollectedModalCount" class="text-white text-sm">0</strong> 件</div>
+          <div class="text-[10px] text-amber-200 mt-0.5">※全額入金で自動的に予定から実績へ振替</div>
+        </div>
+      </div>
+
+      <!-- 請求書一覧テーブル -->
+      <div class="overflow-x-auto border border-slate-200 rounded-xl shadow-sm">
+        <table class="w-full text-xs text-left border-collapse min-w-[620px]">
+          <thead class="bg-slate-100 text-slate-700 font-bold uppercase text-[10px] border-b">
+            <tr>
+              <th class="py-2.5 px-3">請求書番号 / 施主名</th>
+              <th class="py-2.5 px-3">件名・内容</th>
+              <th class="py-2.5 px-2">入金期日</th>
+              <th class="py-2.5 px-3 text-right">請求金額</th>
+              <th class="py-2.5 px-3 text-right">入金済額</th>
+              <th class="py-2.5 px-3 text-right text-amber-700">未回収残高</th>
+              <th class="py-2.5 px-2 text-center">入金消込 / 期日</th>
+            </tr>
+          </thead>
+          <tbody id="uncollectedTableBody" class="divide-y divide-slate-100">
+            <!-- JSで動的レンダリング -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pt-2 flex justify-between items-center border-t text-xs">
+        <button type="button" onclick="app.openMisocaImportModal()" class="text-blue-600 hover:underline font-bold text-xs flex items-center space-x-1">
+          <span>📥 MisocaのCSVを取り込む</span>
+        </button>
+        <button type="button" class="modal-close-btn px-4 py-2 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-700 transition">
+          閉じる
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- G. 一部入金・入金記録モーダル -->
+  <div id="modalRecordPayment" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl max-w-md w-full p-4 sm:p-5 shadow-2xl space-y-3 text-xs">
+      <div class="flex items-center justify-between border-b pb-2">
+        <h3 class="text-sm font-bold text-slate-900 flex items-center">
+          <span class="mr-1.5">💰</span> 請求書の入金消込・実績登録
+        </h3>
+        <button class="modal-close-btn text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+        <div class="flex justify-between items-center text-[11px]">
+          <span class="text-slate-500" id="payModalInvNo">INV-2026-000</span>
+          <span class="font-bold text-blue-700" id="payModalPartner">施主名</span>
+        </div>
+        <div class="font-bold text-slate-800 text-xs" id="payModalSubject">件名</div>
+        <div class="flex justify-between items-center text-xs pt-1 border-t">
+          <span>請求金額: <strong id="payModalTotalAmt">¥0</strong></span>
+          <span class="text-amber-700 font-bold">未回収残高: <strong id="payModalRemainingAmt" class="text-sm">¥0</strong></span>
+        </div>
+      </div>
+
+      <form id="formRecordPayment" class="space-y-3">
+        <input type="hidden" id="payModalInvoiceId">
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">入金日（通帳に着金した日） <span class="text-red-500">*</span></label>
+          <input type="date" id="payInputDate" required class="w-full border border-slate-300 rounded-lg p-2 text-xs focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">入金額（一部入金も可能） <span class="text-red-500">*</span></label>
+          <div class="relative">
+            <span class="absolute left-3 top-2 text-slate-400 font-bold">¥</span>
+            <input type="number" id="payInputAmount" required min="1" step="1" class="w-full border border-slate-300 rounded-lg pl-7 pr-3 py-1.5 text-sm font-black text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500">
+          </div>
+          <p class="text-[10px] text-slate-500 mt-1">※全額ではなく内金や中間金などの一部入金にも対応しています。</p>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">着金口座（入金された銀行口座） <span class="text-red-500">*</span></label>
+          <select id="payInputAccount" required class="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white font-bold text-slate-800 focus:outline-none">
+            <option value="bank-1">中京銀行（当座預金 / 主口座）</option>
+            <option value="bank-2">十六銀行（普通預金）</option>
+            <option value="bank-3">ゆうちょ銀行</option>
+            <option value="bank-4">大垣共立銀行（普通預金）</option>
+            <option value="bank-5">JAバンク（普通預金）</option>
+            <option value="cash">手許現金</option>
+          </select>
+        </div>
+
+        <div class="pt-2 flex justify-end space-x-2 border-t">
+          <button type="button" class="modal-close-btn px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition">キャンセル</button>
+          <button type="submit" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow transition">入金を確定（実績化）</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- H. Misoca CSV取り込みモーダル -->
+  <div id="modalMisocaImport" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b pb-3">
+        <h3 class="text-base font-bold text-slate-900 flex items-center">
+          <span class="mr-1.5">📑</span> Misoca（請求書・見積書）CSV取り込み
+        </h3>
+        <button class="modal-close-btn text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <div class="text-xs text-slate-600 space-y-1">
+        <p>クラウド請求書サービス「Misoca」からダウンロードした<strong>請求書一覧CSV</strong>を取り込みます。</p>
+        <p class="text-[11px] text-slate-500">・施主名、請求金額、入金期日を日別資金繰り表に自動反映<br>・<strong>弥生オンラインの売掛仕訳と重複しない安全設計</strong></p>
+      </div>
+
+      <!-- ドラッグ＆ドロップエリア -->
+      <div id="misocaDropZone" class="border-2 border-dashed border-amber-300 hover:border-amber-500 rounded-xl p-6 text-center bg-amber-50/40 hover:bg-amber-50 transition cursor-pointer space-y-2">
+        <svg class="w-10 h-10 text-amber-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+        <div class="font-bold text-slate-800 text-xs">Misocaの請求書CSVをここにドラッグ＆ドロップ</div>
+        <p class="text-[10px] text-slate-500">または下のボタンからファイルを選択</p>
+        <input type="file" id="misocaFileInput" accept=".csv,text/csv" class="hidden">
+        <button type="button" onclick="document.getElementById('misocaFileInput').click()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm transition inline-block">
+          CSVファイルを選択
+        </button>
+      </div>
+
+      <!-- デモ用サンプル読込ボタン -->
+      <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+        <div>
+          <div class="font-bold text-slate-800 text-xs">🧪 サンプルデータで試す</div>
+          <div class="text-[10px] text-slate-500">Misocaの請求書データを一発読み込み</div>
+        </div>
+        <button type="button" id="btnLoadSampleMisoca" class="bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold px-3 py-1.5 rounded-lg transition border border-slate-700 shadow-sm">
+          サンプル読込
+        </button>
+      </div>
+
+      <!-- 結果表示 -->
+      <div id="misocaImportResultArea" class="hidden p-3.5 rounded-xl border text-xs space-y-1"></div>
+
+      <div class="pt-2 flex justify-end border-t">
+        <button type="button" class="modal-close-btn px-4 py-2 bg-slate-800 text-white font-bold rounded-lg text-xs hover:bg-slate-700 transition">
+          閉じる
+        </button>
+      </div>
+    </div>
+  </div>
+
+  
+  <!-- I. 請求書の写真登録 ＆ AI自動読み取りモーダル -->
+  <div id="modalInvoicePhoto" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b pb-3">
+        <div>
+          <h3 class="text-base font-bold text-slate-900 flex items-center">
+            <span class="mr-1.5">📷</span> 請求書写真登録 ＆ AI自動読み取り
+          </h3>
+          <p class="text-[11px] text-slate-500 mt-0.5">スマホで紙の請求書を撮影し、AIで支払先・金額・期日を読み取ります</p>
+        </div>
+        <button class="modal-close-btn text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <!-- 写真アップロード / カメラ撮影エリア -->
+      <div id="photoUploadSection" class="space-y-3">
+        <input type="file" id="invoiceCameraInput" accept="image/*" capture="environment" class="hidden">
+        <input type="file" id="invoiceFileInput" accept="image/*" class="hidden">
+
+        <div class="grid grid-cols-2 gap-2.5">
+          <button type="button" id="btnTriggerCamera" class="p-4 bg-purple-50 hover:bg-purple-100 border-2 border-dashed border-purple-300 rounded-xl text-center space-y-1.5 transition">
+            <div class="w-10 h-10 bg-purple-600 text-white rounded-full flex items-center justify-center mx-auto shadow-sm">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+            </div>
+            <div class="font-bold text-xs text-purple-900">📸 カメラで撮影する</div>
+            <p class="text-[10px] text-purple-700">スマホで紙の請求書をパシャリ</p>
+          </button>
+
+          <button type="button" id="btnTriggerFile" class="p-4 bg-slate-50 hover:bg-slate-100 border-2 border-dashed border-slate-300 rounded-xl text-center space-y-1.5 transition">
+            <div class="w-10 h-10 bg-slate-700 text-white rounded-full flex items-center justify-center mx-auto shadow-sm">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            </div>
+            <div class="font-bold text-xs text-slate-800">🖼️ 写真を選ぶ</div>
+            <p class="text-[10px] text-slate-500">保存済みの請求書画像を選択</p>
+          </button>
+        </div>
+
+        <!-- デモ用サンプル請求書ボタン -->
+        <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+          <span class="text-slate-600 font-medium">手元に紙の請求書がない場合:</span>
+          <button type="button" id="btnLoadSampleInvoicePhoto" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-lg font-bold text-[11px] transition shadow-sm">
+            🧪 サンプル請求書で試す
+          </button>
+        </div>
+      </div>
+
+      <!-- 画像プレビュー ＆ AI解析ローディング -->
+      <div id="photoPreviewSection" class="hidden space-y-2">
+        <div class="relative bg-slate-900 rounded-xl overflow-hidden max-h-48 flex items-center justify-center">
+          <img id="invoicePreviewImg" src="" alt="請求書プレビュー" class="max-h-48 object-contain">
+          <div id="aiScanningOverlay" class="absolute inset-0 bg-slate-900/60 flex flex-col items-center justify-center text-white space-y-2">
+            <div class="w-8 h-8 border-4 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
+            <span class="text-xs font-bold animate-pulse text-purple-200">🤖 AIが請求書を読み取り中...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 本人確認・修正フォーム（AI読み取り結果） -->
+      <form id="formConfirmInvoiceAI" class="hidden space-y-3 text-xs border-t pt-3">
+        <div class="bg-purple-50 p-2.5 rounded-xl border border-purple-200 text-purple-900 text-[11px] flex items-center space-x-1.5 font-bold">
+          <span>✅ AIが自動読み取りしました。内容を確認・修正して登録してください。</span>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">支払先（取引先・業者名） <span class="text-red-500">*</span></label>
+          <input type="text" id="aiInputPartner" required class="w-full border border-slate-300 rounded-lg p-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-purple-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">請求金額（円） <span class="text-red-500">*</span></label>
+            <div class="relative">
+              <span class="absolute left-2.5 top-1.5 text-slate-400 font-bold">¥</span>
+              <input type="number" id="aiInputAmount" required min="1" step="1" class="w-full border border-slate-300 rounded-lg pl-6 pr-2.5 py-1.5 text-sm font-black text-rose-700 focus:outline-none focus:ring-1 focus:ring-purple-500">
+            </div>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">支払期限（予定日） <span class="text-red-500">*</span></label>
+            <input type="date" id="aiInputDueDate" required class="w-full border border-slate-300 rounded-lg p-1.5 text-xs font-bold bg-white text-slate-800 focus:outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">請求日</label>
+            <input type="date" id="aiInputIssueDate" class="w-full border border-slate-300 rounded-lg p-1.5 text-xs bg-white text-slate-700 focus:outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">勘定科目・費目</label>
+            <select id="aiInputCategory" class="w-full border border-slate-300 rounded-lg p-1.5 text-xs bg-white font-medium">
+              <option value="石材仕入">石材仕入代（墓石・外柵）</option>
+              <option value="建材仕入">基礎建材費（生コン・セメント）</option>
+              <option value="重機リース">重機・クレーン運搬費</option>
+              <option value="外注加工">字彫り・加工外注費</option>
+              <option value="消耗品・工具">消耗品・工具（砥石等）</option>
+              <option value="車両・燃料">車両費・ガソリン代</option>
+              <option value="その他経費">その他経費</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">出金口座の指定 <span class="text-xs text-slate-500 font-normal">（本人が選択、未定も可）</span></label>
+          <select id="aiInputAccount" class="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-purple-500">
+            <option value="unassigned">⚠️ 支払口座：未定（未配分額として警告管理）</option>
+            <option value="bank-1">中京銀行（当座預金 / 主口座）</option>
+            <option value="bank-2">十六銀行（普通預金）</option>
+            <option value="bank-3">ゆうちょ銀行</option>
+            <option value="bank-4">大垣共立銀行（普通預金）</option>
+            <option value="bank-5">JAバンク（普通預金）</option>
+            <option value="cash">手許現金</option>
+          </select>
+        </div>
+
+        <!-- Google ドライブ自動保存先のご案内 -->
+        <div class="p-2.5 bg-blue-50/80 rounded-xl border border-blue-200 text-xs space-y-1">
+          <div class="flex items-center justify-between text-blue-950 font-bold text-[11px]">
+            <span class="flex items-center">
+              <svg class="w-4 h-4 mr-1 text-blue-600" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z"/></svg>
+              Google ドライブへ自動仕分け保存（Macの容量を消費しません）
+            </span>
+          </div>
+          <div class="text-[10px] text-blue-900 bg-white p-2 rounded-lg border border-blue-100 font-mono flex items-center justify-between">
+            <span id="gdriveFolderPath">Google ドライブ ➔ 請求書 ➔ 2026年11月 ➔ (自動保存)</span>
+            <a id="btnOpenGDriveLink" href="https://drive.google.com" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline font-sans font-bold hover:text-blue-800 ml-2 whitespace-nowrap">
+              フォルダを開く ➔
+            </a>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">摘要・メモ</label>
+          <input type="text" id="aiInputNote" class="w-full border border-slate-300 rounded-lg p-1.5 text-xs text-slate-700 focus:outline-none">
+        </div>
+
+        <div class="pt-2 flex justify-end space-x-2 border-t">
+          <button type="button" class="modal-close-btn px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition">キャンセル</button>
+          <button type="submit" class="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg shadow transition">
+            この内容で支払予定に登録
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  
+  <!-- J. 将来資金予測 ＆ シミュレーション（ストレステスト）モーダル -->
+  <div id="modalStressTest" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b pb-3">
+        <div>
+          <h3 class="text-base font-bold text-slate-900 flex items-center">
+            <span class="mr-1.5">⚡</span> 将来資金シミュレーション（ストレステスト）
+          </h3>
+          <p class="text-[11px] text-slate-500 mt-0.5">「もし大口入金が遅れたら？」「売上が減ったら？」「突発出費があったら？」を検証</p>
+        </div>
+        <button class="modal-close-btn text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <!-- シナリオ設定フォーム -->
+      <form id="formStressTest" class="space-y-3.5 text-xs">
+        
+        <!-- シナリオ1: 大口入金の遅延 -->
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+          <label class="flex items-center space-x-2 font-bold text-slate-800 cursor-pointer">
+            <input type="checkbox" id="simCheckDelay" class="w-4 h-4 text-purple-600 rounded">
+            <span>① 50万円以上の大口売掛金の入金が30日遅延した場合</span>
+          </label>
+          <p class="text-[10px] text-slate-500 pl-6">施主様のご都合等で着工金や完工金の支払いが1か月ズレ込んだ場合の耐性をテスト</p>
+        </div>
+
+        <!-- シナリオ2: 売上減少 -->
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+          <div class="flex items-center justify-between font-bold text-slate-800">
+            <span>② 今後の売上が減少した場合の耐性</span>
+            <span id="simSalesRateLabel" class="text-purple-700 font-black">通常 (0%減)</span>
+          </div>
+          <input type="range" id="simSalesRange" min="0" max="40" step="10" value="0" class="w-full">
+          <div class="flex justify-between text-[10px] text-slate-400">
+            <span>通常</span>
+            <span>10%減</span>
+            <span>20%減</span>
+            <span>30%減</span>
+            <span>40%減</span>
+          </div>
+        </div>
+
+        <!-- シナリオ3: 突発的な大型出費 -->
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+          <label class="block font-bold text-slate-800">③ 突発的な大型修繕・設備出費（円）</label>
+          <div class="relative">
+            <span class="absolute left-2.5 top-1.5 text-slate-400 font-bold">¥</span>
+            <input type="number" id="simInputExtraExp" value="0" min="0" step="100000" placeholder="0" class="w-full border border-slate-300 rounded-lg pl-6 pr-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none">
+          </div>
+          <p class="text-[10px] text-slate-500">例: カニクレーン故障修繕費やトラック買替（1,000,000円など）を入力</p>
+        </div>
+
+        <!-- 試算結果表示カード -->
+        <div id="simResultCard" class="p-4 rounded-xl border space-y-2 bg-slate-900 text-white shadow-sm">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-300 font-bold">シミュレーション判定結果</span>
+            <span id="simSafetyBadge" class="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">安全</span>
+          </div>
+          <div class="flex justify-between items-baseline pt-1">
+            <span class="text-[11px] text-slate-400">期間中 最低手元資金:</span>
+            <span id="simMinBalVal" class="text-2xl font-black text-emerald-400">¥0</span>
+          </div>
+          <div id="simResultDetail" class="text-[11px] text-slate-300 border-t border-slate-800 pt-2 leading-relaxed">
+            <!-- JSで動的解説 -->
+          </div>
+        </div>
+
+        <div class="pt-2 flex justify-end">
+          <button type="button" class="modal-close-btn px-4 py-2 bg-slate-800 text-white font-bold rounded-lg text-xs hover:bg-slate-700 transition">
+            閉じる
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 🔒 外出先用 暗証番号（画面ロックPIN）入力モーダル -->
+  <div id="modalSecurityPin" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+    <div class="bg-white rounded-2xl max-w-xs w-full p-6 shadow-2xl text-center space-y-4">
+      <div class="w-12 h-12 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center mx-auto shadow-inner">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+      </div>
+      <div>
+        <h3 class="text-base font-extrabold text-slate-800">中川石材 資金繰り管理</h3>
+        <p class="text-xs text-slate-500 mt-1">暗証番号を入力してロックを解除してください</p>
+      </div>
+
+      <form id="pinUnlockForm" class="space-y-4">
+        <div>
+          <input type="password" id="pinInputUnlock" maxlength="8" placeholder="••••" autofocus class="w-full text-center text-2xl font-mono tracking-widest border-2 border-slate-300 rounded-xl py-2 px-3 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200">
+          <div id="pinErrorMessage" class="text-rose-600 text-[11px] font-bold mt-1.5 hidden">暗証番号が正しくありません</div>
+        </div>
+
+        <button type="submit" class="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm rounded-xl shadow-md transition">
+          ロック解除
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast 通知コンテナ -->
+  <div id="toastContainer" class="fixed top-14 right-4 z-50 space-y-2 pointer-events-none"></div>
+
+  <!-- アプリケーションスクリプト -->
+  <script src="js/store.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
