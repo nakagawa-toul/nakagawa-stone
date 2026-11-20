@@ -3,7 +3,7 @@
  * LocalStorageによる端末内保存、資金繰り表シミュレーション、費目別支出分析
  */
 
-const STORAGE_KEY = 'nakagawa_stone_app_data_v8'; // v8: Misoca確定請求書データ（13件・未回収86.8万円）完全内蔵版 // v7: 弥生確定仕訳（2026年全月キャッシュフロー・実取引543件）完全統合版
+const STORAGE_KEY = 'nakagawa_stone_app_data_v10'; // v10: M-toulアクティブタスク（完了案件完全除外・11件期限超過反映）版 // v9: M-toul実案件（56件）＆実タスク（33件）完全統合版 // v8: Misoca確定請求書データ（13件・未回収86.8万円）完全内蔵版 // v7: 弥生確定仕訳（2026年全月キャッシュフロー・実取引543件）完全統合版
 
 // 勘定科目・費目マスター（石材店特化）
 const EXPENSE_CATEGORIES = [
@@ -112,71 +112,13 @@ const INITIAL_DATA = {
     bankName: '北國銀行・JA・はくさん信金・手許現金',
     lastUpdated: '2026-11-20 20:55'
   },
-  // 2. タスク（初期は空）
-  tasks: [],
-  // 3. 入出金予定・実績（弥生会計2026年確定出納543件を完全統合）
+  // 2. タスク（M-toul実案件から抽出された今やるべき工程タスク33件）
+  tasks: (typeof NAKAGAWA_INITIAL_TASKS !== 'undefined' ? NAKAGAWA_INITIAL_TASKS : []),
+  // 3. 入出金予定・実績（弥生会計2026年確定出納543件＋Misoca未回収請求書9件を完全統合）
   transactions: (typeof NAKAGAWA_INITIAL_TRANSACTIONS !== 'undefined' ? NAKAGAWA_INITIAL_TRANSACTIONS : []),
 
-  // 4. 工事・お客様案件
-  projects: [
-    {
-      id: 'proj-1',
-      name: '佐藤家 墓所新規建立工事（洋型・黒御影）',
-      customerName: '佐藤 正雄 様',
-      siteLocation: '市営青山霊園 2区3号',
-      scheduleDate: '2026-11-05 〜 2026-12-10',
-      assignee: '夫（施工）・私（設計/経理）',
-      status: 'contracted',
-      statusLabel: '契約済・石材手配中',
-      nextAction: '11/5 基礎生コン打設、霊園養生計画書の提出',
-      driveLinks: {
-        drawing: 'https://drive.google.com/drive/folders/sample-sato-drawing',
-        estimate: 'https://drive.google.com/drive/folders/sample-sato-estimate',
-        invoice: 'https://drive.google.com/drive/folders/sample-sato-invoice',
-        photos: 'https://drive.google.com/drive/folders/sample-sato-photos'
-      },
-      contractAmount: 1700000,
-      note: 'お客様のご要望で正面文字は「絆」を彫刻。家紋は花立に彫る。'
-    },
-    {
-      id: 'proj-2',
-      name: '宗教法人 田中寺様 歴代住職墓所 改修補修工事',
-      customerName: '田中寺 住職様',
-      siteLocation: '寺院境内 歴代墓域',
-      scheduleDate: '2026-11-12 〜 2026-11-28',
-      assignee: '夫',
-      status: 'drawing',
-      statusLabel: '見積・図面提出中',
-      nextAction: '家紋彫刻位置修正図面をご住職へ持参・最終承諾受領',
-      driveLinks: {
-        drawing: 'https://drive.google.com/drive/folders/sample-tanakaji-drawing',
-        estimate: 'https://drive.google.com/drive/folders/sample-tanakaji-estimate',
-        invoice: '',
-        photos: 'https://drive.google.com/drive/folders/sample-tanakaji-photos'
-      },
-      contractAmount: 1200000,
-      note: '11月末の法要までに完成必須。参道の敷石段差解消も含む。'
-    },
-    {
-      id: 'proj-3',
-      name: '高橋家 戒名追加彫刻・納骨法要準備',
-      customerName: '高橋 健一 様',
-      siteLocation: '長福寺霊園 5列12番',
-      scheduleDate: '2026-11-01 〜 2026-11-18',
-      assignee: '私（原稿）・夫（現場彫刻）',
-      status: 'carving',
-      statusLabel: '文字原稿確認中',
-      nextAction: '原稿OK後、ゴムシート版下作成・現地ブラスト彫刻日確定',
-      driveLinks: {
-        drawing: 'https://drive.google.com/drive/folders/sample-takahashi-text',
-        estimate: 'https://drive.google.com/drive/folders/sample-takahashi-estimate',
-        invoice: '',
-        photos: ''
-      },
-      contractAmount: 55000,
-      note: '四十九日法要：11月21日(土) 午前10時開式。納骨お手伝い要。'
-    }
-  ],
+  // 4. 工事・お客様案件（M-toul実案件56件を完全統合）
+  projects: (typeof NAKAGAWA_INITIAL_PROJECTS !== 'undefined' ? NAKAGAWA_INITIAL_PROJECTS : []),
 
   // 5. 作業履歴（時系列ログ）
   activityLogs: [
@@ -1590,11 +1532,13 @@ class StoneAppStore {
   toggleTaskStatus(taskId) {
     const task = this.data.tasks.find(t => t.id === taskId);
     if (task) {
-      if (task.status === 'completed') {
+      if (task.status === 'completed' || task.completed === true) {
         task.status = 'pending';
+        task.completed = false;
         task.completedAt = null;
       } else {
         task.status = 'completed';
+        task.completed = true;
         const now = new Date();
         task.completedAt = now.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 

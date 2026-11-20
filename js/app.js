@@ -1117,12 +1117,13 @@ class StoneApp {
     const weekAheadStr = weekAhead.toISOString().slice(0, 10);
 
     tasks.forEach(t => {
-      if (t.status === 'pending') {
-        if (t.dueDate < today) {
+      const isPending = t.status === 'pending' || (!t.completed && t.status !== 'completed');
+      if (isPending) {
+        if (t.dueDate && t.dueDate < today) {
           overdueCount++;
         } else if (t.dueDate === today) {
           todayCount++;
-        } else if (t.dueDate <= weekAheadStr) {
+        } else if (t.dueDate && t.dueDate <= weekAheadStr) {
           weekCount++;
         }
       }
@@ -1203,14 +1204,15 @@ class StoneApp {
       if (categoryFilter !== 'all' && t.category !== categoryFilter) return false;
 
       // 状態・期限フィルタ
+      const isPending = t.status === 'pending' || (!t.completed && t.status !== 'completed');
       if (this.taskFilter === 'overdue') {
-        return t.status === 'pending' && t.dueDate < today;
+        return isPending && t.dueDate && t.dueDate < today;
       } else if (this.taskFilter === 'today') {
-        return t.status === 'pending' && t.dueDate === today;
+        return isPending && t.dueDate === today;
       } else if (this.taskFilter === 'week') {
-        return t.status === 'pending' && t.dueDate >= today && t.dueDate <= weekAheadStr;
+        return isPending && t.dueDate && t.dueDate >= today && t.dueDate <= weekAheadStr;
       } else if (this.taskFilter === 'completed') {
-        return t.status === 'completed';
+        return t.status === 'completed' || t.completed === true;
       }
       return true; // 'all'
     });
@@ -1228,6 +1230,9 @@ class StoneApp {
 
     // カテゴリごとの配色バッジマップ
     const categoryColors = {
+      '現場対応': 'bg-indigo-100 text-indigo-800 border-indigo-200',
+      '見積・営業': 'bg-amber-100 text-amber-800 border-amber-200',
+      '請求・回収': 'bg-rose-100 text-rose-800 border-rose-200',
       '支払い': 'bg-rose-100 text-rose-800 border-rose-200',
       '返信': 'bg-sky-100 text-sky-800 border-sky-200',
       '工事準備': 'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -1240,8 +1245,8 @@ class StoneApp {
     projects.forEach(p => projectMap[p.id] = p.name);
 
     container.innerHTML = filtered.map(t => {
-      const isCompleted = t.status === 'completed';
-      const isOverdue = !isCompleted && t.dueDate < today;
+      const isCompleted = t.status === 'completed' || t.completed === true;
+      const isOverdue = !isCompleted && t.dueDate && t.dueDate < today;
       const isToday = !isCompleted && t.dueDate === today;
 
       // 期限バッジ
