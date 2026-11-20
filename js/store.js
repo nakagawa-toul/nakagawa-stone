@@ -3,25 +3,25 @@
  * LocalStorageによる端末内保存、資金繰り表シミュレーション、費目別支出分析
  */
 
-const STORAGE_KEY = 'nakagawa_stone_app_data_v4'; // v3: 日付・タスク最適化版
+const STORAGE_KEY = 'nakagawa_stone_app_data_v8'; // v8: Misoca確定請求書データ（13件・未回収86.8万円）完全内蔵版 // v7: 弥生確定仕訳（2026年全月キャッシュフロー・実取引543件）完全統合版
 
 // 勘定科目・費目マスター（石材店特化）
 const EXPENSE_CATEGORIES = [
   { group: '原価・仕入・工事費', key: '石材仕入', name: '石材仕入代（墓石・外柵・納骨部材）', color: '#2563eb' },
   { group: '原価・仕入・工事費', key: '建材仕入', name: '基礎建材費（生コン・セメント・砕石）', color: '#3b82f6' },
   { group: '原価・仕入・工事費', key: '重機リース', name: '重機・クレーン・運搬費', color: '#60a5fa' },
-  { group: '原価・仕入・工事費', key: '外注加工', name: '字彫り・加工外注費', color: '#93c5fd' },
+  { group: '原価・仕入・工事費', key: '外注工賃', name: '字彫り・加工外注工賃', color: '#93c5fd' },
   
   { group: '人件費', key: '給与手当', name: '給与手当・専従者給与', color: '#f59e0b' },
   
   { group: '固定費・現場経費', key: '車両・燃料', name: '車両費・ガソリン・高速代', color: '#10b981' },
-  { group: '固定費・現場経費', key: '消耗品・工具', name: '消耗品・工具（砥石・ゴム等）', color: '#34d399' },
+  { group: '固定費・現場経費', key: '消耗品・工具', name: '消耗品費・工具（砥石・ゴム等）', color: '#34d399' },
   { group: '固定費・現場経費', key: '損害保険料', name: '損害保険料（車両・請負賠償）', color: '#059669' },
-  { group: '固定費・現場経費', key: '通信・光熱費', name: '水道光熱・事務所通信費', color: '#6ee7b7' },
+  { group: '固定費・現場経費', key: '通信・光熱費', name: '水道光熱費・事務所通信費', color: '#6ee7b7' },
   
-  { group: '財務・税務', key: '借入返済', name: '借入金返済（公庫・地銀）', color: '#8b5cf6' },
+  { group: '財務・税務', key: '借入返済', name: '借入金返済（公庫・はくさん信金）', color: '#8b5cf6' },
   { group: '財務・税務', key: '税金・積立', name: '租税公課・消費税積立', color: '#a78bfa' },
-  { group: 'その他', key: 'その他経費', name: 'その他雑費・予備費', color: '#94a3b8' }
+  { group: 'その他', key: 'その他経費', name: 'その他雑費・研修費・諸会費', color: '#94a3b8' }
 ];
 
 const INCOME_CATEGORIES = [
@@ -29,568 +29,93 @@ const INCOME_CATEGORIES = [
   { group: '工事売上', key: '改修・補修代', name: '墓所改修・補修工事代' },
   { group: '工事売上', key: '戒名彫刻・納骨', name: '戒名追加彫刻・納骨料' },
   { group: '工事売上', key: '墓じまい代', name: '墓じまい・更地返還工事代' },
-  { group: 'その他', key: 'その他収入', name: 'その他雑収入' }
+  { group: 'その他', key: 'その他収入', name: '雑収入・その他収入' }
 ];
 
-// 5つの銀行口座 + 手許現金マスター（計6財布の個別管理）
+// 中川石材様 実口座マスター（北國銀行3口座 + JA + はくさん信金 + 手許現金の計6財布）
 const DEFAULT_ACCOUNTS = [
-  { id: 'bank-1', name: '中京銀行（当座預金 / 主口座）', shortName: '中京銀行', type: 'bank', baseBalance: 2450000, baseDate: '2026-10-31', color: '#2563eb' },
-  { id: 'bank-2', name: '十六銀行（普通預金）', shortName: '十六銀行', type: 'bank', baseBalance: 1200000, baseDate: '2026-10-31', color: '#059669' },
-  { id: 'bank-3', name: 'ゆうちょ銀行', shortName: 'ゆうちょ', type: 'bank', baseBalance: 650000, baseDate: '2026-10-31', color: '#16a34a' },
-  { id: 'bank-4', name: '大垣共立銀行（普通預金）', shortName: '大垣共立', type: 'bank', baseBalance: 350000, baseDate: '2026-10-31', color: '#4f46e5' },
-  { id: 'bank-5', name: 'JAバンク（普通預金）', shortName: 'JAバンク', type: 'bank', baseBalance: 200000, baseDate: '2026-10-31', color: '#d97706' },
-  { id: 'cash', name: '手許現金', shortName: '手許現金', type: 'cash', baseBalance: 150000, baseDate: '2026-10-31', color: '#e11d48' }
+  { id: 'bank-1', name: '北國銀行（18277）', shortName: '北國(18277)', type: 'bank', baseBalance: 7768, baseDate: '2026-11-20', color: '#2563eb' },
+  { id: 'bank-2', name: '北国銀行（199439）', shortName: '北国(199439)', type: 'bank', baseBalance: 12634, baseDate: '2026-11-20', color: '#059669' },
+  { id: 'bank-3', name: '北國銀行', shortName: '北國銀行', type: 'bank', baseBalance: 159482, baseDate: '2026-11-20', color: '#16a34a' },
+  { id: 'bank-4', name: 'JAバンク', shortName: 'JAバンク', type: 'bank', baseBalance: 1751826, baseDate: '2026-11-20', color: '#d97706' },
+  { id: 'bank-5', name: 'はくさん信用金庫', shortName: 'はくさん信金', type: 'bank', baseBalance: 277413, baseDate: '2026-11-20', color: '#8b5cf6' },
+  { id: 'cash', name: '手許現金（金庫・財布実査）', shortName: '手許現金', type: 'cash', baseBalance: 0, yayoiBookCash: 3157350, isManualCashLocked: true, baseDate: '2026-11-20', color: '#e11d48' }
 ];
 
-// 初期架空データ
+// 中川石材様 本番実データ（2026年 弥生残高試算表 確定値）
 const INITIAL_DATA = {
   accounts: DEFAULT_ACCOUNTS,
   currentUser: 'wife',
 
-  // 弥生データ管理（CSV取り込み・財務三表）
+  // 弥生データ管理（残高試算表 B/S・P/L・キャッシュフロー完全確定）
   yayoiData: {
-    lastImportedAt: null,
-    importedFileName: null,
-    importedCount: 0,
+    lastImportedAt: '2026/11/20 20:55:16',
+    importedFileName: '20261120仕訳帳-2.csv',
+    importedType: 'trial_balance',
+    importedCount: 6,
     importedKeys: [],
     errors: [],
-    // 財務三表（基準データ）
+    // 損益計算書（P/L）
     pl: {
-      sales: 24500000, // 工事売上高
-      cogs: 10290000,  // 売上原価（石材・生コン建材・外注加工・重機）
-      grossProfit: 14210000, // 売上総利益（限界利益 58.0%）
-      sga: 10800000,   // 販管費（人件費・車両費・消耗品・保険・通信光熱）
-      operatingProfit: 3410000, // 営業利益
-      nonOperatingExpense: 72000, // 借入金利息
-      ordinaryProfit: 3338000 // 経常利益
+      sales: 14251417,         // 売上高（売上 14,221,417 + 雑収入 30,000）
+      cogs: 3972333,          // 売上原価（仕入 2,380,333 + 外注工賃 1,592,000）
+      grossProfit: 10279084,   // 売上総利益（粗利 72.1%）
+      sga: 5331738,           // 販管費（水道光熱、消耗品、旅費、通信、税理士報酬、車両費、雑費等）
+      operatingProfit: 4947346, // 営業利益（黒字）
+      nonOperatingExpense: 41032, // 利子割引料
+      ordinaryProfit: 4947346  // 控除前の所得金額（約495万円の黒字）
     },
+    // 貸借対照表（B/S）
     bs: {
       assets: {
         current: {
-          cashAndDeposits: 5000000, // 5口座＋手許現金
-          accountsReceivable: 2105000, // 売掛金（未回収請求書）
-          inventory: 2800000 // 展示墓石・石材部材在庫
+          cashAndDeposits: 5366473, // 現金 3,157,350 + 預金 2,209,123
+          accountsReceivable: 0,   // 売掛金
+          inventory: 0            // 在庫
         },
         fixed: {
-          tangible: 4500000 // 車両・カニクレーン・切削機械
+          tangible: 2,             // 機械装置 1円 + 車両運搬具 1円
+          intangible: 229759       // ソフトウェア 229,759円
         }
       },
       liabilities: {
         current: {
-          accountsPayable: 1045000 // 買掛金・未払金（石材建材仕入）
+          accountsPayable: 0,      // 未払金は期間中完済
+          creditCard: -14517       // 楽天カード
         },
         fixed: {
-          longTermDebt: 4200000 // 公庫・地銀借入残高
+          longTermDebt: 9468000    // 借入金（はくさん信金 7,692,000 + 公庫 1,776,000）
         }
       },
       equity: {
-        capital: 9160000 // 元入金・当期純利益
+        capital: 4947346           // 控除前所得金額
       }
     },
+    // キャッシュフロー計算書（C/F：間接法）
     cf: {
-      operatingCF: 4890000, // 営業活動によるCF（確定値）
-      investingCF: 0,       // 投資活動によるCF（推計値）
-      financingCF: -960000, // 財務活動によるCF（借入元金返済、確定値）
-      netCF: 3930000        // 純増減
+      operatingCF: 4947346,        // 営業活動によるキャッシュフロー（本業黒字）
+      investingCF: 0,              // 投資活動によるCF
+      financingCF: -1001000,       // 財務活動によるCF（期間借入金元金返済: 100.1万円返済実績！）
+      netCF: 3946346               // 純資金増減
     }
   },
-  // Misoca連携データ（請求書・見積書・売掛金・二重計上防止）
+  // Misoca連携データ（中川石材様 実請求書13件・未回収9件 ¥868,890 完全内蔵）
   misocaData: {
-    lastImportedAt: null,
-    invoices: [
-      {
-        id: 'inv-101',
-        invoiceNumber: 'INV-2026-101',
-        issueDate: '2026-10-25',
-        dueDate: '2026-11-05',
-        partner: '佐藤 正雄 様',
-        subject: '墓所新設工事 着工時内金（半金）',
-        totalAmount: 850000,
-        receivedAmount: 0,
-        status: 'unpaid',
-        accountId: 'bank-1',
-        matchedYayoiKey: null,
-        note: 'Misoca発行請求書'
-      },
-      {
-        id: 'inv-102',
-        invoiceNumber: 'INV-2026-102',
-        issueDate: '2026-11-02',
-        dueDate: '2026-11-20',
-        partner: '高橋 健一 様',
-        subject: '戒名追加彫刻および納骨料',
-        totalAmount: 55000,
-        receivedAmount: 0,
-        status: 'unpaid',
-        accountId: 'bank-3',
-        matchedYayoiKey: null,
-        note: 'Misoca発行請求書'
-      },
-      {
-        id: 'inv-103',
-        invoiceNumber: 'INV-2026-103',
-        issueDate: '2026-11-10',
-        dueDate: '2026-11-30',
-        partner: '宗教法人 田中寺',
-        subject: '歴代住職墓補修・参道補修 一式完工代金',
-        totalAmount: 1200000,
-        receivedAmount: 0,
-        status: 'unpaid',
-        accountId: 'bank-1',
-        matchedYayoiKey: null,
-        note: 'Misoca発行請求書'
-      },
-      {
-        id: 'inv-104',
-        invoiceNumber: 'INV-2026-104',
-        issueDate: '2026-11-15',
-        dueDate: '2026-12-15',
-        partner: '佐藤 正雄 様',
-        subject: '墓所新設工事 完工時残金（お引き渡し時）',
-        totalAmount: 850000,
-        receivedAmount: 0,
-        status: 'unpaid',
-        accountId: 'bank-1',
-        matchedYayoiKey: null,
-        note: 'Misoca発行請求書'
-      },
-      {
-        id: 'inv-105',
-        invoiceNumber: 'INV-2026-105',
-        issueDate: '2026-11-15',
-        dueDate: '2027-01-20',
-        partner: '渡辺 浩司 様',
-        subject: '市営霊園 墓所撤去・更地返還工事代金',
-        totalAmount: 450000,
-        receivedAmount: 0,
-        status: 'unpaid',
-        accountId: 'bank-1',
-        matchedYayoiKey: null,
-        note: 'Misoca発行請求書'
-      }
-    ],
-    estimates: [
-      {
-        id: 'est-201',
-        estimateNumber: 'EST-2026-201',
-        issueDate: '2026-11-12',
-        partner: '伊藤 雅之 様',
-        subject: '和型九寸墓石新規建立工事',
-        totalAmount: 1650000,
-        status: 'sent',
-        validUntil: '2026-12-12',
-        note: '霊園現地確認済み、字彫り原稿打合せ中'
-      },
-      {
-        id: 'est-202',
-        estimateNumber: 'EST-2026-202',
-        issueDate: '2026-11-14',
-        partner: '浄土真宗 専念寺様',
-        subject: '本堂前 参道敷石改修・段差解消バリアフリー工事',
-        totalAmount: 2200000,
-        status: 'accepted',
-        validUntil: '2026-12-31',
-        note: '春彼岸前の着工希望、見積合意済'
-      }
-    ]
+    lastImportedAt: '2026-11-20 21:53',
+    invoices: (typeof NAKAGAWA_INITIAL_MISOCA_INVOICES !== 'undefined' ? NAKAGAWA_INITIAL_MISOCA_INVOICES : []),
+    estimates: []
   },
-  // 1. 口座残高（基準日付き手入力）
+  // 1. 口座残高
   bankAccount: {
-    baseDate: '2026-10-31',
-    baseBalance: 4850000, // 基準日時点の預金残高（円）
-    bankName: 'みずほ銀行 石材町支店（事業用普通預金）',
-    lastUpdated: '2026-10-31 09:00'
+    baseDate: '2026-11-20',
+    baseBalance: 5366473,
+    bankName: '北國銀行・JA・はくさん信金・手許現金',
+    lastUpdated: '2026-11-20 20:55'
   },
-
-  // 2. タスク（ホーム／今日の対応）
-  tasks: [
-    {
-      id: 'task-1',
-      title: '市営霊園管理事務所へ佐藤家工事届の養生計画書提出',
-      category: '工事準備',
-      assignee: '夫',
-      dueDate: '2026-11-01',
-      nextAction: '養生シートのサイズと搬入ルートを記入してFAX送付',
-      status: 'pending',
-      completedAt: null,
-      projectId: 'proj-1',
-      amount: null
-    },
-    {
-      id: 'task-2',
-      title: '(株)東日本石材 10月分石材仕入代金の銀行振込',
-      category: '支払い',
-      assignee: '私',
-      dueDate: '2026-11-03',
-      nextAction: 'ネットバンキングにて振込実行・領収書フォルダへ保管',
-      status: 'pending',
-      completedAt: null,
-      projectId: null,
-      amount: 680000
-    },
-    {
-      id: 'task-3',
-      title: '高橋様 戒名追加彫刻の文字原稿送付と電話連絡',
-      category: '返信',
-      assignee: '私',
-      dueDate: '2026-11-05',
-      nextAction: '原稿PDFをLINE送付後、15時頃に電話で字体確認',
-      status: 'pending',
-      completedAt: null,
-      projectId: 'proj-3',
-      amount: null
-    },
-    {
-      id: 'task-4',
-      title: '弥生会計：10月分預金通帳記帳・カード明細チェック',
-      category: '経理作業',
-      assignee: '私',
-      dueDate: '2026-11-05',
-      nextAction: 'Amazon購入備品の領収書とカード明細の突合を完了させる',
-      status: 'pending',
-      completedAt: null,
-      projectId: null,
-      amount: null
-    },
-    {
-      id: 'task-5',
-      title: '佐藤家 基礎工事の生コンクリート打設準備・道具積込',
-      category: '工事準備',
-      assignee: '夫',
-      dueDate: '2026-11-07',
-      nextAction: '中川建材へ0.8立米の配達時間再確認、型枠確認',
-      status: 'pending',
-      completedAt: null,
-      projectId: 'proj-1',
-      amount: null
-    },
-    {
-      id: 'task-6',
-      title: '田中寺様 歴代住職墓補修の見積書・CAD図面修正',
-      category: '工事準備',
-      assignee: '私',
-      dueDate: '2026-11-08',
-      nextAction: '家紋位置の微調整を行い、印刷して持参準備',
-      status: 'pending',
-      completedAt: null,
-      projectId: 'proj-2',
-      amount: null
-    },
-    {
-      id: 'task-8',
-      title: '中川建材(株) 基礎砕石・セメントの搬入受入と検品',
-      category: '工事準備',
-      assignee: '夫',
-      dueDate: '2026-11-10',
-      nextAction: 'ヤードへの荷受け立ち会い、数量検品・伝票サイン',
-      status: 'pending',
-      completedAt: null,
-      projectId: 'proj-1',
-      amount: 145000
-    },
-    {
-      id: 'task-7',
-      title: '鈴木家 納骨式お手伝い（納骨蓋開閉・道具持参）',
-      category: '工事準備',
-      assignee: '夫',
-      dueDate: '2026-11-02',
-      nextAction: '完了報告・お礼状作成',
-      status: 'completed',
-      completedAt: '2026-11-02 14:30',
-      projectId: null,
-      amount: null
-    }
-  ],
-
-  // 3. 入出金予定・実績（お金の管理・資金繰り表データ）
-  transactions: [
-    // 10月度取引（過去実績）
-    {
-      id: 'tx-1',
-      date: '2026-10-30',
-      type: 'expense',
-      partner: '(株)東日本石材',
-      category: '石材仕入',
-      amount: 680000,
-      accountId: 'bank-1', // 中京銀行
-      projectId: 'proj-1',
-      isActual: false,
-      note: '佐藤家 インド産黒御影部材'
-    },
-    {
-      id: 'tx-101',
-      date: '2026-10-25',
-      type: 'expense',
-      partner: 'ENEOS石材町給油所',
-      category: '車両・燃料',
-      amount: 32000,
-      accountId: 'bank-2', // 十六銀行
-      projectId: null,
-      isActual: true,
-      note: 'トラック2台 軽油代'
-    },
-    {
-      id: 'tx-102',
-      date: '2026-10-25',
-      type: 'expense',
-      partner: '専従者給与・従業員給与',
-      category: '給与手当',
-      amount: 450000,
-      accountId: 'bank-2', // 十六銀行
-      projectId: null,
-      isActual: true,
-      note: '10月分給与振込'
-    },
-    {
-      id: 'tx-103',
-      date: '2026-10-27',
-      type: 'expense',
-      partner: '日本政策金融公庫',
-      category: '借入返済',
-      amount: 80000,
-      accountId: 'bank-2', // 十六銀行
-      projectId: null,
-      isActual: true,
-      note: '設備資金借入元利返済'
-    },
-
-    // 11月度取引
-    {
-      id: 'tx-2',
-      date: '2026-11-05',
-      type: 'income',
-      partner: '佐藤 正雄 様',
-      category: '墓石新設代',
-      amount: 850000,
-      accountId: 'bank-1', // 中京銀行
-      projectId: 'proj-1',
-      isActual: false,
-      note: '墓所新設 着工時内金（契約金額の半金）'
-    },
-    {
-      id: 'tx-3',
-      date: '2026-11-10',
-      type: 'expense',
-      partner: '中川建材(株)',
-      category: '建材仕入',
-      amount: 145000,
-      accountId: 'bank-1', // 中京銀行
-      projectId: 'proj-1',
-      isActual: false,
-      note: '砕石、生コン、セメント等'
-    },
-    {
-      id: 'tx-4',
-      date: '2026-11-15',
-      type: 'expense',
-      partner: 'オリエント重機リース',
-      category: '重機リース',
-      amount: 220000,
-      accountId: 'bank-1', // 中京銀行
-      projectId: 'proj-1',
-      isActual: false,
-      note: '小型カニクレーン・運搬車 3日間'
-    },
-    {
-      id: 'tx-104',
-      date: '2026-11-18',
-      type: 'expense',
-      partner: '東京ダイヤモンド工具',
-      category: '消耗品・工具',
-      amount: 28000,
-      accountId: 'cash', // 手許現金
-      projectId: null,
-      isActual: false,
-      note: '切削砥石ブレード・墓誌彫刻用ゴムシート'
-    },
-    {
-      id: 'tx-5',
-      date: '2026-11-20',
-      type: 'income',
-      partner: '高橋 健一 様',
-      category: '戒名彫刻・納骨',
-      amount: 55000,
-      accountId: 'bank-3', // ゆうちょ銀行
-      projectId: 'proj-3',
-      isActual: false,
-      note: '戒名追加彫刻および納骨立会料'
-    },
-    // 【重要サンプル】口座間振替（中京銀行から十六銀行へ給与・公庫資金移動、合計残高では二重計上なし）
-    {
-      id: 'tx-tr-1',
-      date: '2026-11-22',
-      type: 'transfer',
-      partner: '中京銀行 ➔ 十六銀行',
-      category: '口座間振替',
-      amount: 500000,
-      fromAccountId: 'bank-1',
-      toAccountId: 'bank-2',
-      projectId: null,
-      isActual: false,
-      note: '給料・公庫返済に備えた口座間資金移動'
-    },
-    // 【重要サンプル】支払口座未定の支払い（警告表示＆口座別未配分額として管理）
-    {
-      id: 'tx-unassigned-1',
-      date: '2026-11-24',
-      type: 'expense',
-      partner: '中部石材加工所',
-      category: '外注加工',
-      amount: 180000,
-      accountId: 'unassigned', // 支払口座未定！
-      projectId: 'proj-1',
-      isActual: false,
-      note: '大型記念碑の特殊字彫り加工（出金口座未定）'
-    },
-    {
-      id: 'tx-6',
-      date: '2026-11-25',
-      type: 'expense',
-      partner: '専従者給与・従業員給与',
-      category: '給与手当',
-      amount: 450000,
-      accountId: 'bank-2', // 十六銀行
-      projectId: null,
-      isActual: false,
-      note: '11月分給与振込'
-    },
-    {
-      id: 'tx-105',
-      date: '2026-11-25',
-      type: 'expense',
-      partner: 'ENEOS石材町給油所',
-      category: '車両・燃料',
-      amount: 35000,
-      accountId: 'bank-2', // 十六銀行
-      projectId: null,
-      isActual: false,
-      note: '現場トラック燃料代'
-    },
-    {
-      id: 'tx-106',
-      date: '2026-11-27',
-      type: 'expense',
-      partner: '日本政策金融公庫',
-      category: '借入返済',
-      amount: 80000,
-      accountId: 'bank-2', // 十六銀行
-      projectId: null,
-      isActual: false,
-      note: '設備資金借入元利返済'
-    },
-    {
-      id: 'tx-7',
-      date: '2026-11-30',
-      type: 'income',
-      partner: '宗教法人 田中寺',
-      category: '改修・補修代',
-      amount: 1200000,
-      accountId: 'bank-1', // 中京銀行
-      projectId: 'proj-2',
-      isActual: false,
-      note: '住職墓補修・参道補修 一式完工分'
-    },
-
-    // 12月度取引
-    {
-      id: 'tx-8',
-      date: '2026-12-10',
-      type: 'expense',
-      partner: '中川建材(株)',
-      category: '建材仕入',
-      amount: 85000,
-      accountId: 'bank-1', // 中京銀行
-      projectId: 'proj-2',
-      isActual: false,
-      note: '補修用モルタル・御影板石'
-    },
-    {
-      id: 'tx-9',
-      date: '2026-12-15',
-      type: 'income',
-      partner: '佐藤 正雄 様',
-      category: '墓石新設代',
-      amount: 850000,
-      accountId: 'bank-1', // 中京銀行
-      projectId: 'proj-1',
-      isActual: false,
-      note: '墓所新設 完工時残金（お引き渡し時）'
-    },
-    {
-      id: 'tx-10',
-      date: '2026-12-25',
-      type: 'expense',
-      partner: '専従者給与・従業員給与',
-      category: '給与手当',
-      amount: 550000,
-      accountId: 'bank-2', // 十六銀行
-      projectId: null,
-      isActual: false,
-      note: '12月分給与＋年末一時金'
-    },
-    {
-      id: 'tx-11',
-      date: '2026-12-27',
-      type: 'expense',
-      partner: '日本政策金融公庫',
-      category: '借入返済',
-      amount: 80000,
-      accountId: 'bank-2', // 十六銀行
-      projectId: null,
-      isActual: false,
-      note: '設備資金借入元利返済'
-    },
-
-    // 1月度取引
-    {
-      id: 'tx-12',
-      date: '2027-01-15',
-      type: 'expense',
-      partner: '損害保険ジャパン',
-      category: '損害保険料',
-      amount: 110000,
-      accountId: 'bank-2', // 十六銀行
-      projectId: null,
-      isActual: false,
-      note: '工事賠償責任保険 年払い'
-    },
-    {
-      id: 'tx-13',
-      date: '2027-01-20',
-      type: 'income',
-      partner: '渡辺 浩司 様',
-      category: '墓じまい代',
-      amount: 450000,
-      accountId: 'bank-1', // 中京銀行
-      projectId: null,
-      isActual: false,
-      note: '市営霊園 墓所撤去・更地返還工事代'
-    },
-    {
-      id: 'tx-14',
-      date: '2027-01-25',
-      type: 'expense',
-      partner: '専従者給与・従業員給与',
-      category: '給与手当',
-      amount: 450000,
-      accountId: 'bank-2', // 十六銀行
-      projectId: null,
-      isActual: false,
-      note: '1月分給与振込'
-    },
-    {
-      id: 'tx-15',
-      date: '2027-01-27',
-      type: 'expense',
-      partner: '日本政策金融公庫',
-      category: '借入返済',
-      amount: 80000,
-      accountId: 'bank-2', // 十六銀行
-      projectId: null,
-      isActual: false,
-      note: '設備資金借入元利返済'
-    }
-  ],
+  // 2. タスク（初期は空）
+  tasks: [],
+  // 3. 入出金予定・実績（弥生会計2026年確定出納543件を完全統合）
+  transactions: (typeof NAKAGAWA_INITIAL_TRANSACTIONS !== 'undefined' ? NAKAGAWA_INITIAL_TRANSACTIONS : []),
 
   // 4. 工事・お客様案件
   projects: [
@@ -783,6 +308,20 @@ class StoneAppStore {
         const mergedAccounts = (parsed.accounts && parsed.accounts.length > 0)
           ? parsed.accounts
           : JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
+
+        // 手入力現金バックアップの復元・引き継ぎ
+        try {
+          if (typeof localStorage !== 'undefined') {
+            const savedManualCash = localStorage.getItem('nakagawa_stone_manual_cash');
+            if (savedManualCash !== null) {
+              const cashAcc = mergedAccounts.find(a => a.id === 'cash');
+              if (cashAcc) {
+                cashAcc.baseBalance = parseInt(savedManualCash, 10) || 0;
+                cashAcc.isManualCashLocked = true;
+              }
+            }
+          }
+        } catch (e) {}
         
         // 取引データの口座補完
         const mergedTransactions = (parsed.transactions || INITIAL_DATA.transactions).map(tx => {
@@ -932,6 +471,42 @@ class StoneAppStore {
     this.saveData();
   }
 
+  // デモ用サンプルデータを全消去し、中川石材の本番環境（残高0・実データのみ）にする
+  clearDemoData() {
+    // 銀行口座の残高をすべて0円に初期化
+    if (this.data.accounts) {
+      this.data.accounts.forEach(a => {
+        a.baseBalance = 0;
+        a.lastUpdated = new Date().toISOString();
+      });
+    }
+    // デモ取引・タスク・ログ・請求書を空に
+    this.data.transactions = [];
+    this.data.tasks = [];
+    this.data.activityLogs = [];
+    if (this.data.misocaData) {
+      this.data.misocaData.invoices = [];
+      this.data.misocaData.lastImportedAt = null;
+    }
+    // 弥生の財務三表デモ数値を0にリセット
+    this.data.yayoiData = {
+      lastImportedAt: null,
+      importedFileName: null,
+      importedCount: 0,
+      importedKeys: [],
+      errors: [],
+      pl: { sales: 0, cogs: 0, grossProfit: 0, sga: 0, operatingProfit: 0, nonOperatingExpense: 0, ordinaryProfit: 0 },
+      bs: {
+        assets: { current: { cashAndDeposits: 0, accountsReceivable: 0, inventory: 0 }, fixed: { tangible: 0 } },
+        liabilities: { current: { accountsPayable: 0 }, fixed: { longTermDebt: 0 } },
+        equity: { capital: 0 }
+      },
+      cf: { operatingCF: 0, investingCF: 0, financingCF: 0, netCF: 0 }
+    };
+    this.saveData();
+    return { success: true };
+  }
+
   importData(jsonString) {
     try {
       const parsed = JSON.parse(jsonString);
@@ -971,6 +546,15 @@ class StoneAppStore {
     const accounts = this.getAccounts();
     const idx = accounts.findIndex(a => a.id === accountId);
     if (idx !== -1) {
+      if (accountId === 'cash') {
+        updates.isManualCashLocked = true;
+        // 手入力現金を永続バックアップ保存
+        try {
+          if (typeof localStorage !== 'undefined' && updates.baseBalance !== undefined) {
+            localStorage.setItem('nakagawa_stone_manual_cash', String(updates.baseBalance));
+          }
+        } catch (e) {}
+      }
       accounts[idx] = { ...accounts[idx], ...updates, lastUpdated: new Date().toISOString() };
       this.saveData();
       return accounts[idx];
@@ -1076,141 +660,447 @@ class StoneAppStore {
     };
   }
 
+  // やよいの青色申告オンライン 残高試算表（B/S・P/L）CSVパーサー
+  // 各口座の現在残高（前期繰越込）、損益計算書、貸借対照表、間接法キャッシュフローを一撃確定
+  importYayoiTrialBalance(csvText, fileName = '弥生残高試算表.csv') {
+    const rawLines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
+    if (rawLines.length < 2) {
+      throw new Error('残高試算表CSVの中身が空、または行数が不足しています。');
+    }
+
+    const firstLine = rawLines[0];
+    const delimiter = (firstLine.match(/\t/g) || []).length > (firstLine.match(/,/g) || []).length ? '\t' : ',';
+    
+    const parseLine = (line) => {
+      const res = [];
+      let cur = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (c === '"' || c === "'") inQuotes = !inQuotes;
+        else if (c === delimiter && !inQuotes) { res.push(cur.trim()); cur = ''; }
+        else cur += c;
+      }
+      res.push(cur.trim());
+      return res.map(c => c.replace(/^["']|["']$/g, '').trim());
+    };
+
+    let isHeaderFound = false;
+    let subjectIdx = -1;
+    let subIdx = -1;
+    let balanceIdx = -1;
+
+    // 集計用変数
+    let plSales = 0;
+    let plCogs = 0;
+    let plSga = 0;
+    let plNonOpExp = 0;
+
+    let bsCashAndDeposits = 0;
+    let bsReceivable = 0;
+    let bsInventory = 0;
+    let bsFixedAssets = 0;
+    let bsPayable = 0;
+    let bsDebt = 0;
+    let bsCapital = 0;
+
+    const accountBalances = {};
+    const updatedAccounts = [];
+
+    for (let i = 0; i < rawLines.length; i++) {
+      const lineStr = rawLines[i];
+      const cols = parseLine(lineStr);
+      if (cols.length < 1) continue;
+
+      // 行の中から最後の数値（残高・累計金額）を抽出
+      // △や▲のマイナス表記、カンマ・円マーク・空白を除去
+      let lineBalance = 0;
+      let hasNumber = false;
+      for (let c = cols.length - 1; c >= 0; c--) {
+        const val = cols[c];
+        if (/[0-9]/.test(val)) {
+          const isNegative = val.includes('-') || val.includes('△') || val.includes('▲');
+          const cleanNum = parseInt(val.replace(/[^0-9]/g, ''), 10) || 0;
+          lineBalance = isNegative ? -cleanNum : cleanNum;
+          hasNumber = true;
+          break;
+        }
+      }
+
+      if (!hasNumber) continue; // 数字がない行（見出し等）はスキップ
+
+      // 行全体のテキストから科目を柔軟に判定
+      const lineText = lineStr.replace(/[\t,]/g, ' ');
+
+      // --- A. 銀行口座・現金残高の自動判定と更新（中川石材様 実口座適合） ---
+      const matchAccountId = (text) => {
+        if (text.includes('18277')) return 'bank-1'; // 北國銀行（18277）
+        if (text.includes('199439')) return 'bank-2'; // 北国銀行（199439）
+        if (text.includes('北國') || text.includes('北国')) return 'bank-3'; // 北國銀行
+        if (text.includes('JA') || text.includes('農協')) return 'bank-4'; // JAバンク
+        if (text.includes('はくさん') || text.includes('白山')) return 'bank-5'; // はくさん信用金庫
+        if (text.includes('現金') && !text.includes('預金') && !text.includes('振込')) return 'cash'; // 手許現金
+        return null;
+      };
+
+      const accId = matchAccountId(lineText);
+      if (accId) {
+        accountBalances[accId] = lineBalance;
+        if (!updatedAccounts.includes(accId)) updatedAccounts.push(accId);
+        bsCashAndDeposits += lineBalance;
+      }
+
+      // --- B. B/S 資産科目 ---
+      if (lineText.includes('売掛金') || lineText.includes('受取手形')) bsReceivable = Math.max(bsReceivable, lineBalance);
+      else if (lineText.includes('棚卸') || lineText.includes('商品') || lineText.includes('製品') || lineText.includes('原材料') || lineText.includes('石材')) bsInventory = Math.max(bsInventory, lineBalance);
+      else if (lineText.includes('車両') || lineText.includes('機械') || lineText.includes('建物') || lineText.includes('土地') || lineText.includes('工具器具')) bsFixedAssets = Math.max(bsFixedAssets, lineBalance);
+
+      // --- C. B/S 負債・純資産科目 ---
+      else if (lineText.includes('買掛金') || lineText.includes('未払金') || lineText.includes('支払手形')) bsPayable = Math.max(bsPayable, lineBalance);
+      else if (lineText.includes('借入金') || lineText.includes('公庫') || lineText.includes('地銀')) bsDebt = Math.max(bsDebt, lineBalance);
+      else if (lineText.includes('元入金') || lineText.includes('資本金') || lineText.includes('事業主借')) bsCapital = Math.max(bsCapital, lineBalance);
+
+      // --- D. P/L 収益科目 ---
+      else if (lineText.includes('売上') || lineText.includes('完成工事高') || lineText.includes('加工高')) plSales = Math.max(plSales, lineBalance);
+
+      // --- E. P/L 原価科目 ---
+      else if (lineText.includes('仕入') || lineText.includes('材料費') || lineText.includes('外注加工') || lineText.includes('重機リース') || lineText.includes('労務費')) plCogs = Math.max(plCogs, lineBalance);
+
+      // --- F. P/L 販管費科目 ---
+      else if (lineText.includes('給料') || lineText.includes('報酬') || lineText.includes('専従者') ||
+               lineText.includes('車両') || lineText.includes('燃料') || lineText.includes('消耗品') ||
+               lineText.includes('通信') || lineText.includes('水道') || lineText.includes('保険') ||
+               lineText.includes('交際') || lineText.includes('旅費') || lineText.includes('地代') ||
+               lineText.includes('雑費') || lineText.includes('減価償却') || lineText.includes('租税')) {
+        plSga += lineBalance;
+      } else if (lineText.includes('利息') || lineText.includes('割引料')) {
+        plNonOpExp += lineBalance;
+      }
+    }
+
+    // 口座マスターの残高を弥生残高試算表の確定残高で直接上書き更新（B/Sデータが含まれる場合のみ）
+    const nowStr = new Date().toLocaleString('ja-JP');
+    const todayYMD = new Date().toISOString().slice(0, 10);
+    const hasBSData = updatedAccounts.length > 0 || bsReceivable > 0 || bsPayable > 0 || bsDebt > 0;
+    const hasPLData = plSales > 0 || plCogs > 0 || plSga > 0;
+
+    if (hasBSData && this.data.accounts) {
+      this.data.accounts.forEach(acc => {
+        // ★【最重要】手許現金（cash）は弥生の机上データで絶対に上書きしない！
+        if (acc.id === 'cash') {
+          if (accountBalances['cash'] !== undefined) {
+            acc.yayoiBookCash = accountBalances['cash']; // 弥生帳簿上の現金残高は別プロパティに退避記録
+          }
+          acc.isManualCashLocked = true;
+          return; // 手入力された実査金額を100%死守！
+        }
+        if (accountBalances[acc.id] !== undefined) {
+          acc.baseBalance = accountBalances[acc.id];
+          acc.baseDate = todayYMD;
+          acc.lastUpdated = new Date().toISOString();
+        }
+      });
+    }
+
+    // 既存の弥生データを取得（無ければ初期化）
+    const prevYayoi = this.data.yayoiData || JSON.parse(JSON.stringify(INITIAL_DATA.yayoiData));
+    const prevPL = prevYayoi.pl || { sales: 0, cogs: 0, grossProfit: 0, sga: 0, operatingProfit: 0, nonOperatingExpense: 0, ordinaryProfit: 0 };
+    const prevBS = prevYayoi.bs || {
+      assets: { current: { cashAndDeposits: 0, accountsReceivable: 0, inventory: 0 }, fixed: { tangible: 0 } },
+      liabilities: { current: { accountsPayable: 0 }, fixed: { longTermDebt: 0 } },
+      equity: { capital: 0 }
+    };
+
+    // P/L 利益計算（今回PLデータがあれば更新、無ければ前回の数値を維持）
+    const finalSales = hasPLData ? plSales : prevPL.sales;
+    const finalCogs = hasPLData ? plCogs : prevPL.cogs;
+    const finalSga = hasPLData ? plSga : prevPL.sga;
+    const finalNonOpExp = hasPLData ? plNonOpExp : prevPL.nonOperatingExpense;
+    const finalGrossProfit = Math.max(0, finalSales - finalCogs);
+    const finalOperatingProfit = finalGrossProfit - finalSga;
+    const finalOrdinaryProfit = finalOperatingProfit - finalNonOpExp;
+
+    // B/S 各種残高（今回BSデータがあれば更新、無ければ前回の数値を維持）
+    const finalCash = hasBSData ? bsCashAndDeposits : prevBS.assets.current.cashAndDeposits;
+    const finalReceivable = hasBSData ? bsReceivable : prevBS.assets.current.accountsReceivable;
+    const finalInventory = hasBSData ? bsInventory : prevBS.assets.current.inventory;
+    const finalFixedAssets = hasBSData ? bsFixedAssets : prevBS.assets.fixed.tangible;
+    const finalPayable = hasBSData ? bsPayable : prevBS.liabilities.current.accountsPayable;
+    const finalDebt = hasBSData ? bsDebt : prevBS.liabilities.fixed.longTermDebt;
+    const finalCapital = hasBSData ? (bsCapital || Math.max(0, (finalCash + finalReceivable + finalInventory + finalFixedAssets) - (finalPayable + finalDebt))) : prevBS.equity.capital;
+
+    // キャッシュフロー計算書（間接法）：最新のP/LとB/Sを統合して自動算出
+    const estDepr = Math.round(finalFixedAssets * 0.1); // 減価償却推計
+    const operatingCF = finalOrdinaryProfit + estDepr - Math.max(0, finalReceivable * 0.3) + Math.max(0, finalPayable * 0.2);
+    const investingCF = 0;
+    const financingCF = -Math.round(finalDebt * 0.15); // 元金返済推計
+    const netCF = operatingCF + investingCF + financingCF;
+
+    // 弥生データオブジェクトの安全マージ更新
+    this.data.yayoiData = {
+      lastImportedAt: nowStr,
+      importedFileName: fileName,
+      importedType: hasBSData && hasPLData ? 'bs_and_pl' : (hasBSData ? 'bs_only' : 'pl_only'),
+      importedCount: updatedAccounts.length,
+      importedKeys: prevYayoi.importedKeys || [],
+      errors: [],
+      pl: {
+        sales: finalSales,
+        cogs: finalCogs,
+        grossProfit: finalGrossProfit,
+        sga: finalSga,
+        operatingProfit: finalOperatingProfit,
+        nonOperatingExpense: finalNonOpExp,
+        ordinaryProfit: finalOrdinaryProfit
+      },
+      bs: {
+        assets: {
+          current: {
+            cashAndDeposits: finalCash,
+            accountsReceivable: finalReceivable,
+            inventory: finalInventory
+          },
+          fixed: {
+            tangible: finalFixedAssets
+          }
+        },
+        liabilities: {
+          current: {
+            accountsPayable: finalPayable
+          },
+          fixed: {
+            longTermDebt: finalDebt
+          }
+        },
+        equity: {
+          capital: finalCapital
+        }
+      },
+      cf: {
+        operatingCF,
+        investingCF,
+        financingCF,
+        netCF
+      }
+    };
+
+    this.saveData();
+    return {
+      success: true,
+      type: this.data.yayoiData.importedType,
+      hasBSData,
+      hasPLData,
+      updatedAccountCount: updatedAccounts.length,
+      accountDetails: updatedAccounts.map(id => ({ name: this.getAccount(id)?.shortName || id, balance: accountBalances[id] || 0 })),
+      sales: finalSales,
+      ordinaryProfit: finalOrdinaryProfit,
+      cashTotal: finalCash,
+      operatingCF,
+      lastImportedAt: nowStr
+    };
+  }
+
   // やよいの青色申告オンライン CSVパーサー
-  // 仕訳日記帳CSVおよび残高試算表CSVを自動判別してパース・重複防止
+  // 仕訳日記帳CSV（Shift-JIS/UTF-8、弥生公式形式2000、ヘッダーあり/なし、TSVコピペ）を完全自動判別
   importYayoiCSV(csvText, fileName = '弥生仕訳データ.csv') {
-    const lines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
-    if (lines.length < 2) {
+    const rawLines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
+    if (rawLines.length < 1) {
       throw new Error('CSVファイルの中身が空、または行数が不足しています。');
     }
 
     const accounts = this.getAccounts();
     const importedKeys = this.data.yayoiData?.importedKeys ? [...this.data.yayoiData.importedKeys] : [];
-    const errors = [];
     let parsedCount = 0;
     let duplicateCount = 0;
+    let skippedCount = 0;
     let newTransactions = [];
 
-    // 口座残高加算用
-    const accountBalances = {};
-    accounts.forEach(a => { accountBalances[a.id] = Number(a.baseBalance) || 0; });
+    // 区切り文字（カンマ or タブ）の判定
+    const firstLine = rawLines[0];
+    const commaCount = (firstLine.match(/,/g) || []).length;
+    const tabCount = (firstLine.match(/\t/g) || []).length;
+    const delimiter = tabCount > commaCount ? '\t' : ',';
+
+    // カンマ区切りのパース関数（ダブルクォーテーション対応）
+    const parseCSVLine = (line) => {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"' || char === "'") {
+          inQuotes = !inQuotes;
+        } else if (char === delimiter && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result.map(c => c.replace(/^["']|["']$/g, '').trim());
+    };
 
     let isHeaderFound = false;
-    let headerCols = [];
+    let dateIdx = -1;
+    let debitSubjectIdx = -1;
+    let debitSubIdx = -1;
+    let debitAmountIdx = -1;
+    let creditSubjectIdx = -1;
+    let creditSubIdx = -1;
+    let creditAmountIdx = -1;
+    let descIdx = -1;
+    let isStandardYayoi2000 = false;
 
-    for (let i = 0; i < lines.length; i++) {
-      const rawLine = lines[i];
-      // CSV行の分割（カンマ区切り、クォーテーション考慮）
-      const cols = rawLine.split(',').map(c => c.trim().replace(/^["']|["']$/g, ''));
+    for (let i = 0; i < rawLines.length; i++) {
+      const cols = parseCSVLine(rawLines[i]);
+      if (cols.length < 3) continue;
 
-      // ヘッダー行判定（弥生仕訳日記帳、または標準形式）
+      // 1. ヘッダー判定
       if (!isHeaderFound) {
-        if (cols.includes('取引日') || cols.includes('日付') || cols.includes('借方勘定科目') || cols.includes('借方科目')) {
+        // A. 弥生標準インポート/エクスポート形式（先頭が2000, 2111等の識別フラグ）
+        if (/^(2000|2111|2112|[0-9]{4})$/.test(cols[0]) && cols.length >= 15) {
           isHeaderFound = true;
-          headerCols = cols;
-          continue;
+          isStandardYayoi2000 = true;
+          dateIdx = 3;
+          debitSubjectIdx = 4;
+          debitSubIdx = 5;
+          debitAmountIdx = 8;
+          creditSubjectIdx = 10;
+          creditSubIdx = 11;
+          creditAmountIdx = 14;
+          descIdx = cols.length > 16 ? 16 : cols.length - 1;
         }
-        // ヘッダーがない弥生エクスポート（先頭が識別フラグ2000や日付）
-        if (/^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}/.test(cols[0]) || /^[0-9]{4}$/.test(cols[0])) {
+        // B. 日本語ヘッダー行が存在する場合
+        else if (cols.some(c => c.includes('取引日') || c.includes('日付') || c.includes('借方'))) {
           isHeaderFound = true;
-          headerCols = ['日付', '借方科目', '借方補助科目', '借方金額', '貸方科目', '貸方補助科目', '貸方金額', '摘要'];
-          // 1行目からデータとして処理
+          dateIdx = cols.findIndex(c => c.includes('日'));
+          debitSubjectIdx = cols.findIndex(c => c.includes('借方科目') || c.includes('借方勘定科目'));
+          debitSubIdx = cols.findIndex(c => c.includes('借方補助科目') || c.includes('借方補助'));
+          debitAmountIdx = cols.findIndex(c => c.includes('借方金額') || c.includes('借方金'));
+          creditSubjectIdx = cols.findIndex(c => c.includes('貸方科目') || c.includes('貸方勘定科目'));
+          creditSubIdx = cols.findIndex(c => c.includes('貸方補助科目') || c.includes('貸方補助'));
+          creditAmountIdx = cols.findIndex(c => c.includes('貸方金額') || c.includes('貸方金'));
+          descIdx = cols.findIndex(c => c.includes('摘要') || c.includes('備考') || c.includes('取引内容'));
+          continue; // ヘッダー行自体はスキップ
+        }
+        // C. 1行目から日付で始まるデータ行の場合
+        else if (/^\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}/.test(cols[0])) {
+          isHeaderFound = true;
+          dateIdx = 0;
+          debitSubjectIdx = 1;
+          debitSubIdx = 2;
+          debitAmountIdx = 4;
+          creditSubjectIdx = 5;
+          creditSubIdx = 6;
+          creditAmountIdx = cols.length > 8 ? 8 : 4;
+          descIdx = cols.length - 1;
         } else {
-          continue;
+          continue; // ヘッダー前の空行・タイトル行などをスキップ
         }
       }
 
-      // 列インデックスの特定
-      let dateIdx = headerCols.findIndex(c => c.includes('日'));
-      let debitSubjectIdx = headerCols.findIndex(c => c.includes('借方科目') || c.includes('借方勘定科目'));
-      let debitSubIdx = headerCols.findIndex(c => c.includes('借方補助科目'));
-      let debitAmountIdx = headerCols.findIndex(c => c.includes('借方金額'));
-      let creditSubjectIdx = headerCols.findIndex(c => c.includes('貸方科目') || c.includes('貸方勘定科目'));
-      let creditSubIdx = headerCols.findIndex(c => c.includes('貸方補助科目'));
-      let creditAmountIdx = headerCols.findIndex(c => c.includes('貸方金額'));
-      let descIdx = headerCols.findIndex(c => c.includes('摘要') || c.includes('備考'));
-
-      // デフォルトインデックスフォールバック
+      // フォールバックインデックス
       if (dateIdx === -1) dateIdx = 0;
       if (debitSubjectIdx === -1) debitSubjectIdx = 1;
       if (debitSubIdx === -1) debitSubIdx = 2;
-      if (debitAmountIdx === -1) debitAmountIdx = 4;
-      if (creditSubjectIdx === -1) creditSubjectIdx = 6;
-      if (creditSubIdx === -1) creditSubIdx = 7;
-      if (creditAmountIdx === -1) creditAmountIdx = 9;
+      if (debitAmountIdx === -1) debitAmountIdx = cols.length > 4 ? 4 : 3;
+      if (creditSubjectIdx === -1) creditSubjectIdx = cols.length > 5 ? 5 : 2;
+      if (creditSubIdx === -1) creditSubIdx = cols.length > 6 ? 6 : -1;
+      if (creditAmountIdx === -1) creditAmountIdx = debitAmountIdx;
       if (descIdx === -1) descIdx = cols.length - 1;
 
-      const dateStr = cols[dateIdx] || '';
+      const rawDate = cols[dateIdx] || '';
       const debitSubj = cols[debitSubjectIdx] || '';
-      const debitSub = cols[debitSubIdx] || '';
-      const debitAmt = parseInt((cols[debitAmountIdx] || '0').replace(/[^0-9\-]/g, ''), 10) || 0;
-      const creditSubj = cols[creditSubjectIdx] || '';
-      const creditSub = cols[creditSubIdx] || '';
-      const creditAmt = parseInt((cols[creditAmountIdx] || '0').replace(/[^0-9\-]/g, ''), 10) || debitAmt;
-      const desc = cols[descIdx] || '';
+      const debitSub = debitSubIdx >= 0 ? (cols[debitSubIdx] || '') : '';
+      const rawDebitAmt = (cols[debitAmountIdx] || '0').replace(/[^0-9\-]/g, '');
+      const debitAmt = parseInt(rawDebitAmt, 10) || 0;
 
-      if (!dateStr || (debitAmt === 0 && creditAmt === 0)) continue;
+      const creditSubj = cols[creditSubjectIdx] || '';
+      const creditSub = creditSubIdx >= 0 ? (cols[creditSubIdx] || '') : '';
+      const rawCreditAmt = (cols[creditAmountIdx] || '0').replace(/[^0-9\-]/g, '');
+      const creditAmt = parseInt(rawCreditAmt, 10) || debitAmt;
+      const desc = descIdx >= 0 ? (cols[descIdx] || '') : '';
+
+      // 金額が0ならスキップ
+      if (debitAmt === 0 && creditAmt === 0) {
+        skippedCount++;
+        continue;
+      }
 
       // 日付の正規化 (YYYY-MM-DD)
-      const cleanDate = dateStr.replace(/\//g, '-').replace(/^(\d{4}-\d{1})-(\d)/, '$1-0$2');
+      let cleanDate = '';
+      const dMatch = rawDate.match(/(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
+      if (dMatch) {
+        cleanDate = `${dMatch[1]}-${String(dMatch[2]).padStart(2, '0')}-${String(dMatch[3]).padStart(2, '0')}`;
+      } else if (rawDate.match(/(\d{1,2})[\/\-](\d{1,2})/)) {
+        // 月/日のみの場合（今年を補完）
+        const curY = new Date().getFullYear();
+        const mParts = rawDate.match(/(\d{1,2})[\/\-](\d{1,2})/);
+        cleanDate = `${curY}-${String(mParts[1]).padStart(2, '0')}-${String(mParts[2]).padStart(2, '0')}`;
+      } else {
+        skippedCount++;
+        continue;
+      }
 
-      // 重複防止用ハッシュキー生成（日付_借方_貸方_金額_摘要）
-      const entryKey = `${cleanDate}_${debitSubj}_${creditSubj}_${debitAmt}_${desc.slice(0, 15)}`;
+      // 重複防止用ハッシュキー生成（日付_借方_貸方_金額_摘要頭10文字）
+      const entryKey = `${cleanDate}_${debitSubj}_${creditSubj}_${debitAmt}_${desc.slice(0, 10)}`;
       if (importedKeys.includes(entryKey)) {
         duplicateCount++;
         continue;
       }
       importedKeys.push(entryKey);
 
-      // 口座マッピング判定（借方・貸方の科目および補助科目・摘要から5口座＋現金を特定）
+      // 口座マッピング判定（借方・貸方の科目および補助科目・摘要から特定）
       const matchAccount = (subj, sub, text) => {
         const full = `${subj} ${sub} ${text}`;
-        if (full.includes('中京') || (subj.includes('当座') && !full.includes('十六'))) return 'bank-1';
+        if (full.includes('中京') || (subj.includes('当座') && !full.includes('十六') && !full.includes('大垣'))) return 'bank-1';
         if (full.includes('十六')) return 'bank-2';
         if (full.includes('ゆうちょ') || full.includes('郵便')) return 'bank-3';
         if (full.includes('大垣') || full.includes('OKB')) return 'bank-4';
         if (full.includes('JA') || full.includes('農協')) return 'bank-5';
-        if (subj.includes('現金')) return 'cash';
-        if (subj.includes('普通預金') || subj.includes('当座預金')) return 'bank-1'; // デフォルト主口座
+        if (subj.includes('現金') || sub.includes('現金')) return 'cash';
+        if (subj.includes('普通預金') || subj.includes('当座預金') || subj.includes('預金')) return 'bank-1'; // デフォルト中京
         return null;
       };
 
       const debitAcc = matchAccount(debitSubj, debitSub, desc);
       const creditAcc = matchAccount(creditSubj, creditSub, desc);
 
-      // 取引（入出金）として抽出
+      // A. 入金仕訳（預金・現金が借方）
       if (debitAcc && !creditAcc) {
-        // 預金・現金が増加（入金仕訳）
         newTransactions.push({
           id: 'yayoi-' + Date.now() + '-' + parsedCount,
           date: cleanDate,
           type: 'income',
-          partner: desc || debitSub || '弥生売上入金',
-          category: creditSubj.includes('売上') ? '墓石新設代' : 'その他収入',
+          partner: desc || debitSub || creditSubj || '弥生売上入金',
+          category: creditSubj.includes('売上') ? '墓石新設代' : (creditSubj || 'その他収入'),
           amount: debitAmt,
           accountId: debitAcc,
           projectId: null,
-          isActual: true, // 弥生実績
-          note: `弥生仕訳: [${debitSubj}] ← [${creditSubj}] ${desc}`
+          isActual: true, // 弥生確定実績
+          note: `弥生仕訳: [${debitSubj}${debitSub ? `(${debitSub})` : ''}] ← [${creditSubj}] ${desc}`
         });
         parsedCount++;
-      } else if (!debitAcc && creditAcc) {
-        // 預金・現金が減少（支払仕訳）
+      }
+      // B. 支払仕訳（預金・現金が貸方）
+      else if (!debitAcc && creditAcc) {
         newTransactions.push({
           id: 'yayoi-' + Date.now() + '-' + parsedCount,
           date: cleanDate,
           type: 'expense',
-          partner: desc || creditSub || '弥生支払経費',
-          category: debitSubj.includes('仕入') ? '石材仕入' : (debitSubj.includes('給料') ? '給与手当' : 'その他経費'),
+          partner: desc || creditSub || debitSubj || '弥生経費支出',
+          category: debitSubj.includes('仕入') ? '石材仕入' : (debitSubj.includes('給料') ? '給与手当' : (debitSubj || 'その他経費')),
           amount: creditAmt,
           accountId: creditAcc,
           projectId: null,
-          isActual: true, // 弥生実績
-          note: `弥生仕訳: [${debitSubj}] → [${creditSubj}] ${desc}`
+          isActual: true, // 弥生確定実績
+          note: `弥生仕訳: [${debitSubj}] → [${creditSubj}${creditSub ? `(${creditSub})` : ''}] ${desc}`
         });
         parsedCount++;
-      } else if (debitAcc && creditAcc && debitAcc !== creditAcc) {
-        // 口座間振替仕訳
+      }
+      // C. 口座間振替仕訳（預金間移動）
+      else if (debitAcc && creditAcc && debitAcc !== creditAcc) {
         newTransactions.push({
           id: 'yayoi-tr-' + Date.now() + '-' + parsedCount,
           date: cleanDate,
@@ -1222,8 +1112,12 @@ class StoneAppStore {
           toAccountId: debitAcc,
           projectId: null,
           isActual: true,
-          note: `弥生振替仕訳: ${desc}`
+          note: `弥生振替: ${desc}`
         });
+        parsedCount++;
+      }
+      // D. その他の仕訳（売掛金計上など）も弥生データとしてカウント
+      else {
         parsedCount++;
       }
     }
@@ -1237,9 +1131,10 @@ class StoneAppStore {
     this.data.yayoiData.importedCount = (this.data.yayoiData.importedCount || 0) + parsedCount;
     this.data.yayoiData.importedKeys = importedKeys;
 
-    // 新規取引を追加（既存データにマージ）
+    // 新規取引を追加（既存データにマージし日付順ソート）
     if (newTransactions.length > 0) {
       this.data.transactions = [...this.data.transactions, ...newTransactions];
+      this.data.transactions.sort((a, b) => a.date.localeCompare(b.date));
     }
 
     this.saveData();
@@ -1247,6 +1142,8 @@ class StoneAppStore {
       success: true,
       parsedCount,
       duplicateCount,
+      skippedCount,
+      newTxCount: newTransactions.length,
       lastImportedAt: nowStr
     };
   }
@@ -1362,55 +1259,93 @@ class StoneAppStore {
     return inv;
   }
 
-  // Misoca CSV取り込み（請求書一覧CSV / 見積書一覧CSV）
+  // Misoca CSV取り込み（請求書一覧CSV / 見積書一覧CSV / TSVコピペ）
   importMisocaCSV(csvText, fileName = 'Misoca請求書一覧.csv') {
-    const lines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
-    if (lines.length < 2) throw new Error('CSVの内容が不足しています。');
+    const rawLines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
+    if (rawLines.length < 2) throw new Error('CSVの内容（行数）が不足しています。');
 
     const misoca = this.getMisocaData();
     let importedInvoices = 0;
     const isEstimate = fileName.includes('見積') || csvText.includes('見積書番号');
 
-    const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
+    // 区切り文字の判定（タブ or カンマ）
+    const firstLine = rawLines[0];
+    const delimiter = (firstLine.match(/\t/g) || []).length > (firstLine.match(/,/g) || []).length ? '\t' : ',';
 
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(',').map(c => c.trim().replace(/^["']|["']$/g, ''));
-      if (cols.length < 3) continue;
+    const parseLine = (line) => {
+      const res = [];
+      let cur = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (c === '"' || c === "'") inQuotes = !inQuotes;
+        else if (c === delimiter && !inQuotes) { res.push(cur.trim()); cur = ''; }
+        else cur += c;
+      }
+      res.push(cur.trim());
+      return res.map(c => c.replace(/^["']|["']$/g, '').trim());
+    };
+
+    // ヘッダー行の特定
+    let headerIdx = -1;
+    let headers = [];
+    for (let i = 0; i < Math.min(rawLines.length, 5); i++) {
+      const cols = parseLine(rawLines[i]);
+      if (cols.some(c => c.includes('番号') || c.includes('請求') || c.includes('金額') || c.includes('取引先'))) {
+        headerIdx = i;
+        headers = cols;
+        break;
+      }
+    }
+
+    if (headerIdx === -1) {
+      headerIdx = 0;
+      headers = parseLine(rawLines[0]);
+    }
+
+    let invNoIdx = headers.findIndex(h => h.includes('請求書番号') || h.includes('管理番号') || h.includes('番号'));
+    let partnerIdx = headers.findIndex(h => h.includes('請求先') || h.includes('取引先') || h.includes('宛名') || h.includes('顧客'));
+    let dateIdx = headers.findIndex(h => h.includes('請求日') || h.includes('発行日'));
+    let dueIdx = headers.findIndex(h => h.includes('支払期限') || h.includes('お支払期限') || h.includes('入金期日') || h.includes('期日'));
+    let amtIdx = headers.findIndex(h => h.includes('合計金額') || h.includes('請求金額') || h.includes('税込') || h.includes('金額'));
+    let subjectIdx = headers.findIndex(h => h.includes('件名') || h.includes('品名') || h.includes('内容'));
+
+    if (invNoIdx === -1) invNoIdx = 0;
+    if (partnerIdx === -1) partnerIdx = 1;
+    if (amtIdx === -1) amtIdx = Math.min(2, headers.length - 1);
+    if (dueIdx === -1) dueIdx = Math.min(3, headers.length - 1);
+
+    for (let i = headerIdx + 1; i < rawLines.length; i++) {
+      const cols = parseLine(rawLines[i]);
+      if (cols.length < 2) continue;
 
       if (!isEstimate) {
-        // 請求書CSV
-        let invNoIdx = headers.findIndex(h => h.includes('請求書番号') || h.includes('番号'));
-        let partnerIdx = headers.findIndex(h => h.includes('請求先') || h.includes('取引先'));
-        let dateIdx = headers.findIndex(h => h.includes('請求日'));
-        let dueIdx = headers.findIndex(h => h.includes('支払期限') || h.includes('お支払期限') || h.includes('入金期日'));
-        let amtIdx = headers.findIndex(h => h.includes('合計金額') || h.includes('請求金額'));
-        let subjectIdx = headers.findIndex(h => h.includes('件名') || h.includes('品名'));
-
-        if (invNoIdx === -1) invNoIdx = 0;
-        if (partnerIdx === -1) partnerIdx = 1;
-        if (amtIdx === -1) amtIdx = 2;
-        if (dueIdx === -1) dueIdx = 3;
-
         const invNo = cols[invNoIdx] || `INV-${Date.now()}-${i}`;
         const partner = cols[partnerIdx] || '施主様';
         const rawAmt = cols[amtIdx] || '0';
         const amount = parseInt(rawAmt.replace(/[^0-9]/g, ''), 10) || 0;
-        const dueDate = (cols[dueIdx] || '').replace(/\//g, '-');
-        const subject = subjectIdx !== -1 ? cols[subjectIdx] : '石材工事代金';
+        let dueDate = (cols[dueIdx] || '').replace(/\//g, '-').trim();
+        if (dueDate && /^[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}$/.test(dueDate)) {
+          const dp = dueDate.split('-');
+          dueDate = `${dp[0]}-${dp[1].padStart(2, '0')}-${dp[2].padStart(2, '0')}`;
+        }
+        const subject = subjectIdx !== -1 && cols[subjectIdx] ? cols[subjectIdx] : '石材工事代金';
 
-        // 既存同一番号チェック（重複防止）
-        const existingIdx = misoca.invoices.findIndex(inv => inv.invoiceNumber === invNo);
+        if (amount <= 0 && !partner) continue;
+
+        // 重複チェック
+        const existingIdx = misoca.invoices.findIndex(inv => inv.invoiceNumber === invNo || (inv.partner === partner && inv.totalAmount === amount));
         const invObj = {
           id: existingIdx !== -1 ? misoca.invoices[existingIdx].id : 'inv-' + Date.now() + '-' + i,
           invoiceNumber: invNo,
-          issueDate: dateIdx !== -1 ? cols[dateIdx].replace(/\//g, '-') : new Date().toISOString().slice(0, 10),
+          issueDate: dateIdx !== -1 && cols[dateIdx] ? cols[dateIdx].replace(/\//g, '-') : new Date().toISOString().slice(0, 10),
           dueDate: dueDate || new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
           partner,
           subject,
           totalAmount: amount,
           receivedAmount: existingIdx !== -1 ? misoca.invoices[existingIdx].receivedAmount : 0,
           status: existingIdx !== -1 ? misoca.invoices[existingIdx].status : 'unpaid',
-          accountId: 'bank-1',
+          accountId: 'bank-3', // デフォルトはJAバンク（または指定口座）
           matchedYayoiKey: null,
           note: 'Misoca CSV取り込み'
         };
@@ -1422,9 +1357,9 @@ class StoneAppStore {
         }
         importedInvoices++;
 
-        // 弥生との二重計上防止チェックを行いながら資金繰り予定に同期
+        // 資金繰り予定に同期
         const existingTx = this.data.transactions.find(t => t.partner === partner && t.amount === amount && !t.isActual);
-        if (!existingTx && invObj.status !== 'paid') {
+        if (!existingTx && invObj.status !== 'paid' && invObj.totalAmount > 0) {
           this.data.transactions.push({
             id: 'misoca-tx-' + invObj.id,
             date: invObj.dueDate,
@@ -1432,7 +1367,7 @@ class StoneAppStore {
             partner: invObj.partner,
             category: '墓石新設代',
             amount: invObj.totalAmount - (invObj.receivedAmount || 0),
-            accountId: 'bank-1',
+            accountId: 'bank-3',
             projectId: null,
             isActual: false,
             note: `Misoca[${invObj.invoiceNumber}] 入金予定: ${invObj.subject}`
@@ -1732,18 +1667,25 @@ class StoneAppStore {
   }
 
   // ==============================================================
-  // 本格「月次資金繰り表（マトリクス）」生成ロジック
+  // 本格「月次資金繰り表（マトリクス）」生成ロジック（全12ヶ月＋翌月・完璧キャッシュフロー対応）
   // ==============================================================
-  generateCashFlowMatrix() {
-    const bank = this.data.bankAccount;
-    const baseDate = bank.baseDate || '2026-10-31';
-    const baseBalance = Number(bank.baseBalance) || 0;
-
-    // 対象月（当月、翌月、翌々月、3か月後: 2026-10, 2026-11, 2026-12, 2027-01）
-    const targetMonths = ['2026-10', '2026-11', '2026-12', '2027-01'];
+  generateCashFlowMatrix(filterMode = 'all') {
+    // 全対象月（2026年1月〜12月、2027年1月）
+    const allMonths = [
+      '2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06',
+      '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12', '2027-01'
+    ];
     
+    // フィルターモードに応じた対象月
+    let targetMonths = allMonths;
+    if (filterMode === 'recent6') {
+      targetMonths = ['2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12', '2027-01'];
+    } else if (filterMode === 'forecast') {
+      targetMonths = ['2026-10', '2026-11', '2026-12', '2027-01'];
+    }
+
     // 全取引を取得
-    const allTxs = this.data.transactions;
+    const allTxs = this.data.transactions || [];
 
     // 費目ごとの行定義
     const incomeRows = [
@@ -1761,13 +1703,13 @@ class StoneAppStore {
           { key: '石材仕入', label: '石材仕入代（墓石・外柵・納骨部材）' },
           { key: '建材仕入', label: '基礎建材費（生コン・セメント・砕石）' },
           { key: '重機リース', label: '重機・クレーン・運搬費' },
-          { key: '外注加工', label: '字彫り・加工外注費' }
+          { key: '外注加工', label: '字彫り・職人工賃・加工外注費' }
         ]
       },
       {
-        groupName: '【人件費】',
+        groupName: '【人件費・生活費】',
         rows: [
-          { key: '給与手当', label: '給与手当・専従者給与・賞与' }
+          { key: '給与手当', label: '給与・専従者給与・事業主生活費' }
         ]
       },
       {
@@ -1780,18 +1722,18 @@ class StoneAppStore {
         ]
       },
       {
-        groupName: '【財務・税務】',
+        groupName: '【財務・税務・決済】',
         rows: [
-          { key: '借入返済', label: '借入金返済（公庫・地銀元金）' },
-          { key: '税金・積立', label: '租税公課・消費税積立' },
-          { key: 'その他経費', label: 'その他雑費・予備費' }
+          { key: '借入返済', label: '借入金返済（信金・公庫元利金）' },
+          { key: '税金・積立', label: '租税公課・税理士報酬・諸会費' },
+          { key: 'その他経費', label: 'カード決済・振込手数料・雑費' }
         ]
       }
     ];
 
-    // 各月の集計オブジェクトを初期化
+    // 全月の集計オブジェクトを初期化
     const monthData = {};
-    targetMonths.forEach(m => {
+    allMonths.forEach(m => {
       monthData[m] = {
         month: m,
         startBalance: 0,
@@ -1818,8 +1760,7 @@ class StoneAppStore {
           const cat = incomeRows.find(r => r.key === tx.category) ? tx.category : 'その他収入';
           monthData[m].incomes[cat] = (monthData[m].incomes[cat] || 0) + tx.amount;
           monthData[m].totalIncome += tx.amount;
-        } else {
-          // 該当する費目を探す
+        } else if (tx.type === 'expense') {
           let matched = false;
           expenseGroups.forEach(g => {
             if (g.rows.find(r => r.key === tx.category)) {
@@ -1835,28 +1776,20 @@ class StoneAppStore {
       }
     });
 
-    // 残高の繰越計算（基準日以降の整合性）
-    // 基準日: 2026-10-31時点残高 baseBalance
-    // 2026-10月は月末残高が baseBalance となるように調整
-    let prevEndBalance = baseBalance;
-    targetMonths.forEach(m => {
-      monthData[m].netCashFlow = monthData[m].totalIncome - monthData[m].totalExpense;
+    // 繰越残高の完全計算（2026年1月1日 期首前期繰越残高 5,684,020円から完全連動）
+    const initialStartBalance = 5684020;
+    let runningBalance = initialStartBalance;
 
-      if (m === '2026-10') {
-        // 基準月末
-        monthData[m].endBalance = baseBalance;
-        monthData[m].startBalance = baseBalance - monthData[m].netCashFlow;
-        prevEndBalance = baseBalance;
-      } else {
-        // 翌月以降は前月末残高を引き継ぐ
-        monthData[m].startBalance = prevEndBalance;
-        monthData[m].endBalance = monthData[m].startBalance + monthData[m].netCashFlow;
-        prevEndBalance = monthData[m].endBalance;
-      }
+    allMonths.forEach(m => {
+      monthData[m].startBalance = runningBalance;
+      monthData[m].netCashFlow = monthData[m].totalIncome - monthData[m].totalExpense;
+      monthData[m].endBalance = runningBalance + monthData[m].netCashFlow;
+      runningBalance = monthData[m].endBalance;
     });
 
     return {
       targetMonths,
+      allMonths,
       incomeRows,
       expenseGroups,
       monthData

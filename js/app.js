@@ -353,9 +353,66 @@ class StoneApp {
       formRecordPayment.addEventListener('submit', (e) => this.handleSaveRecordPayment(e));
     }
 
+    // 画面外への誤ドロップでブラウザがファイルを開いてしまうのを防止
+    window.addEventListener('dragover', (e) => e.preventDefault(), false);
+    window.addEventListener('drop', (e) => e.preventDefault(), false);
+
     const misocaFileInput = document.getElementById('misocaFileInput');
     if (misocaFileInput) {
       misocaFileInput.addEventListener('change', (e) => this.handleMisocaFileSelect(e));
+    }
+
+    const misocaDropZone = document.getElementById('misocaDropZone');
+    if (misocaDropZone) {
+      misocaDropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        misocaDropZone.classList.add('bg-amber-100', 'border-amber-600');
+      });
+      misocaDropZone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        misocaDropZone.classList.remove('bg-amber-100', 'border-amber-600');
+      });
+      misocaDropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        misocaDropZone.classList.remove('bg-amber-100', 'border-amber-600');
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          this.processMisocaFile(e.dataTransfer.files[0]);
+        }
+      });
+      misocaDropZone.addEventListener('click', (e) => {
+        if (e.target.tagName !== 'BUTTON') {
+          document.getElementById('misocaFileInput')?.click();
+        }
+      });
+    }
+
+    // Misocaタブ切り替え（ドロップ vs テキスト貼り付け）
+    const misocaTabFile = document.getElementById('misocaTabFile');
+    const misocaTabPaste = document.getElementById('misocaTabPaste');
+    const misocaAreaFile = document.getElementById('misocaAreaFile');
+    const misocaAreaPaste = document.getElementById('misocaAreaPaste');
+
+    if (misocaTabFile && misocaTabPaste) {
+      misocaTabFile.addEventListener('click', () => {
+        misocaTabFile.className = 'px-3 py-1.5 rounded-lg bg-amber-600 text-white shadow-sm font-bold';
+        misocaTabPaste.className = 'px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100 font-medium';
+        misocaAreaFile.classList.remove('hidden');
+        misocaAreaPaste.classList.add('hidden');
+      });
+      misocaTabPaste.addEventListener('click', () => {
+        misocaTabPaste.className = 'px-3 py-1.5 rounded-lg bg-amber-600 text-white shadow-sm font-bold';
+        misocaTabFile.className = 'px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100 font-medium';
+        misocaAreaPaste.classList.remove('hidden');
+        misocaAreaFile.classList.add('hidden');
+      });
+    }
+
+    const btnProcessMisocaPaste = document.getElementById('btnProcessMisocaPaste');
+    if (btnProcessMisocaPaste) {
+      btnProcessMisocaPaste.addEventListener('click', () => this.handleProcessMisocaPaste());
     }
 
     const btnLoadSampleMisoca = document.getElementById('btnLoadSampleMisoca');
@@ -365,9 +422,12 @@ class StoneApp {
 
     // 弥生CSV取り込みリスナー
     const btnOpenYayoi = document.getElementById('btnOpenYayoiModal');
-    if (btnOpenYayoi) {
-      btnOpenYayoi.addEventListener('click', () => this.openYayoiModal());
-    }
+    const btnTopOpenYayoi = document.getElementById('btnTopOpenYayoiModal');
+    const badgeYayoi = document.getElementById('yayoiLastImportBadge');
+
+    [btnOpenYayoi, btnTopOpenYayoi, badgeYayoi].forEach(el => {
+      if (el) el.addEventListener('click', () => this.openYayoiModal());
+    });
 
     const yayoiFileInput = document.getElementById('yayoiFileInput');
     if (yayoiFileInput) {
@@ -424,6 +484,19 @@ class StoneApp {
     const btnLoadSampleYayoi = document.getElementById('btnLoadSampleYayoi');
     if (btnLoadSampleYayoi) {
       btnLoadSampleYayoi.addEventListener('click', () => this.handleLoadSampleYayoi());
+    }
+
+    const btnClearDemo = document.getElementById('btnClearDemoData');
+    if (btnClearDemo) {
+      btnClearDemo.addEventListener('click', () => {
+        if (confirm('【確認】試作用の架空データ（デモ売上やサンプル口座残高など）をすべて消去し、中川石材様の本番クリーン状態（残高0円・取引0件）に初期化します。\n\nよろしいですか？')) {
+          window.stoneStore.clearDemoData();
+          this.showToast('🧹 デモデータを全消去しました。中川石材様の本番環境にリセット完了！');
+          const modal = document.getElementById('modalYayoiImport');
+          if (modal) modal.classList.add('hidden');
+          this.render();
+        }
+      });
     }
 
     const btnOpenAccountsModal = document.getElementById('btnOpenAccountsModal');
@@ -1387,12 +1460,30 @@ class StoneApp {
   // --------------------------------------------------------------
   // 2-A. 本格 月次資金繰り表（マトリクス表）
   // --------------------------------------------------------------
+  // 資金繰り表フィルターモード切替
+  setCashFlowFilterMode(mode) {
+    this.cfFilterMode = mode;
+    ['btnCfPeriodAll', 'btnCfPeriodRecent', 'btnCfPeriodForecast'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if ((mode === 'all' && id === 'btnCfPeriodAll') ||
+          (mode === 'recent6' && id === 'btnCfPeriodRecent') ||
+          (mode === 'forecast' && id === 'btnCfPeriodForecast')) {
+        el.className = 'px-3 py-1 rounded-md bg-white text-slate-800 shadow-sm transition font-bold';
+      } else {
+        el.className = 'px-3 py-1 rounded-md text-slate-600 hover:text-slate-900 transition';
+      }
+    });
+    this.renderCashFlowStatement();
+  }
+
   renderCashFlowStatement() {
     const table = document.getElementById('cashFlowStatementTable');
     if (!table) return;
 
-    const matrix = window.stoneStore.generateCashFlowMatrix();
-    const months = matrix.targetMonths; // ['2026-10', '2026-11', '2026-12', '2027-01']
+    this.cfFilterMode = this.cfFilterMode || 'all';
+    const matrix = window.stoneStore.generateCashFlowMatrix(this.cfFilterMode);
+    const months = matrix.targetMonths;
     const mData = matrix.monthData;
 
     // ヘッダー行
@@ -1400,12 +1491,17 @@ class StoneApp {
       <thead class="bg-slate-800 text-white uppercase text-[11px] tracking-wider">
         <tr>
           <th class="py-2.5 px-3 sticky left-0 bg-slate-800 z-10 w-52 min-w-[200px]">科目・費目</th>
-          ${months.map(m => `
-            <th class="py-2.5 px-3 text-right whitespace-nowrap min-w-[105px]">
-              ${m === '2026-10' ? `${m}月 (基準月)` : `${m}月 (予定)`}
-            </th>
-          `).join('')}
-          <th class="py-2.5 px-3 text-right bg-slate-900 font-bold whitespace-nowrap min-w-[110px]">4か月合計</th>
+          ${months.map(m => {
+            const isCurrent = m === '2026-11';
+            const statusLabel = isCurrent ? '当月' : (m < '2026-11' ? '実績' : '予定');
+            const bgClass = isCurrent ? 'bg-blue-900 text-blue-100 font-bold' : '';
+            return `
+              <th class="py-2.5 px-3 text-right whitespace-nowrap min-w-[105px] ${bgClass}">
+                ${m} (${statusLabel})
+              </th>
+            `;
+          }).join('')}
+          <th class="py-2.5 px-3 text-right bg-slate-900 font-bold whitespace-nowrap min-w-[110px]">期間合計</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-200">
@@ -2826,6 +2922,31 @@ class StoneApp {
     if (cardsContainer) {
       cardsContainer.innerHTML = kpis.accounts.map(acc => {
         const isShortage = acc.currentBalance < 0;
+        const isCash = acc.type === 'cash';
+        
+        if (isCash) {
+          return `
+            <div class="bg-rose-50/50 hover:bg-rose-100/60 text-slate-800 p-3 rounded-xl border border-rose-300 shadow-sm transition cursor-pointer group" onclick="app.promptCashEdit();" title="クリックして手元の現金を変更">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-extrabold truncate text-rose-900 flex items-center">
+                  <span class="w-2.5 h-2.5 rounded-full mr-1.5 flex-shrink-0 bg-rose-600"></span>
+                  ${acc.shortName}
+                </span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-200/80 text-rose-800 font-bold flex items-center">
+                  🖐️ 手入力実査 ✏️
+                </span>
+              </div>
+              <div class="text-base sm:text-lg font-black mt-1.5 tracking-tight text-rose-900">
+                ¥${acc.currentBalance.toLocaleString()}
+              </div>
+              <div class="text-[10px] text-rose-700/80 mt-0.5 truncate flex items-center justify-between">
+                <span>金庫・財布の実査額</span>
+                <span class="text-[9px] text-slate-400">(弥生上: ¥3,157,350)</span>
+              </div>
+            </div>
+          `;
+        }
+
         return `
           <div class="bg-white hover:bg-slate-50 text-slate-800 p-3 rounded-xl border border-slate-300 shadow-sm transition cursor-pointer group" onclick="app.switchView('funds'); app.switchFundsSubtab('cashflow');">
             <div class="flex items-center justify-between text-xs">
@@ -2833,12 +2954,12 @@ class StoneApp {
                 <span class="w-2.5 h-2.5 rounded-full mr-1.5 flex-shrink-0" style="background-color: ${acc.color};"></span>
                 ${acc.shortName}
               </span>
-              <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-bold">${acc.type === 'cash' ? '現金' : '口座'}</span>
+              <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-bold">通帳残高</span>
             </div>
             <div class="text-base sm:text-lg font-black mt-1.5 tracking-tight ${isShortage ? 'text-rose-600 font-black' : 'text-slate-900'}">
               ¥${acc.currentBalance.toLocaleString()}
             </div>
-            <div class="text-[10px] text-slate-400 mt-0.5 truncate">基準日: ${acc.baseDate || '10/31'}</div>
+            <div class="text-[10px] text-slate-400 mt-0.5 truncate">基準日: ${acc.baseDate || '11/20'}</div>
           </div>
         `;
       }).join('');
@@ -3213,7 +3334,10 @@ class StoneApp {
           <!-- 口座名（左側） -->
           <div class="flex items-center space-x-2 sm:w-3/5">
             <span class="w-3 h-3 rounded-full flex-shrink-0" style="background-color: ${acc.color};"></span>
-            <input type="text" name="accName_${acc.id}" value="${acc.name}" required class="border border-slate-300 focus:border-blue-500 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 w-full bg-white">
+            <div class="w-full">
+              <input type="text" name="accName_${acc.id}" value="${acc.name}" required class="border border-slate-300 focus:border-blue-500 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 w-full bg-white">
+              ${acc.id === 'cash' ? '<p class="text-[10px] text-rose-700 mt-0.5 font-bold">🖐️ 弥生の机上データに関わらず、金庫にある実査手入力額が最優先で保持されます</p>' : ''}
+            </div>
           </div>
 
           <!-- 金額入力欄（右横並び） -->
@@ -3398,16 +3522,52 @@ class StoneApp {
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
-        const text = evt.target.result;
-        const result = window.stoneStore.importYayoiCSV(text, file.name);
-        this.displayYayoiImportResult(result);
-        this.showToast(`弥生CSV「${file.name}」を取り込みました（${result.parsedCount}件）`);
+        const buffer = evt.target.result;
+        
+        // 文字コード自動判別（Shift-JIS vs UTF-8）
+        let text = '';
+        try {
+          // まずShift-JISでデコードを試みる（弥生エクスポートの標準）
+          const sjisDecoder = new TextDecoder('shift-jis', { fatal: false });
+          const sjisText = sjisDecoder.decode(buffer);
+          
+          // UTF-8でも試す
+          const utf8Decoder = new TextDecoder('utf-8', { fatal: false });
+          const utf8Text = utf8Decoder.decode(buffer);
+
+          // 日本語キーワードの含有率や置換文字（\uFFFD）の少なさで判定
+          const countKeywords = (str) => {
+            const matches = str.match(/(取引日|借方|貸方|普通預金|当座預金|現金|売上|仕入|摘要|2000)/g);
+            return matches ? matches.length : 0;
+          };
+
+          const sjisScore = countKeywords(sjisText) - (sjisText.match(/\uFFFD/g) || []).length * 2;
+          const utf8Score = countKeywords(utf8Text) - (utf8Text.match(/\uFFFD/g) || []).length * 2;
+
+          text = sjisScore >= utf8Score ? sjisText : utf8Text;
+        } catch (e) {
+          // フォールバック
+          text = new TextDecoder('utf-8').decode(buffer);
+        }
+
+        const isTrialBalance = file.name.includes('残高試算表') || file.name.includes('試算表') || text.includes('残高試算表') || text.includes('期末残高') || (text.includes('勘定科目') && !text.includes('取引日') && !text.includes('2000'));
+        
+        let result;
+        if (isTrialBalance) {
+          result = window.stoneStore.importYayoiTrialBalance(text, file.name);
+          this.displayYayoiTrialBalanceResult(result);
+          this.showToast(`✅ 弥生残高試算表「${file.name}」を取り込み、口座残高とキャッシュフローを確定しました！`);
+        } else {
+          result = window.stoneStore.importYayoiCSV(text, file.name);
+          this.displayYayoiImportResult(result);
+          this.showToast(`✅ 弥生仕訳データ「${file.name}」を取り込みました（${result.parsedCount}件）`);
+        }
         this.render();
       } catch (err) {
-        alert('弥生CSVの取り込みに失敗しました: ' + err.message);
+        alert('弥生データの取り込みに失敗しました: ' + err.message);
       }
     };
-    reader.readAsText(file, 'UTF-8');
+    reader.readAsArrayBuffer(file);
   }
 
 
@@ -3416,18 +3576,72 @@ class StoneApp {
     if (!textarea) return;
     const text = textarea.value.trim();
     if (!text) {
-      alert('貼り付け枠に弥生CSVのテキストを入力してください。');
+      alert('貼り付け枠に弥生データのテキストを入力してください。');
       return;
     }
     try {
-      const result = window.stoneStore.importYayoiCSV(text, '貼り付けテキストデータ.csv');
-      this.displayYayoiImportResult(result);
-      this.showToast(`貼り付けた弥生データを取り込みました（${result.parsedCount}件）`);
+      const isTrialBalance = text.includes('残高試算表') || text.includes('試算表') || text.includes('貸借対照表') || text.includes('損益計算書') || text.includes('月次推移') || text.includes('期末') || text.includes('前期繰越') || text.includes('普通預金') || text.includes('当座預金') || (!text.includes('取引日') && !text.includes('2000'));
+      let result;
+      if (isTrialBalance) {
+        result = window.stoneStore.importYayoiTrialBalance(text, '貼り付け残高試算表.csv');
+        this.displayYayoiTrialBalanceResult(result);
+        this.showToast('✅ 貼り付けた残高試算表を取り込み、口座残高とキャッシュフローを確定しました！');
+      } else {
+        result = window.stoneStore.importYayoiCSV(text, '貼り付け仕訳データ.csv');
+        this.displayYayoiImportResult(result);
+        this.showToast(`✅ 貼り付けた仕訳データを取り込みました（${result.parsedCount}件）`);
+      }
       textarea.value = '';
       this.render();
     } catch (err) {
       alert('弥生データの取り込みに失敗しました: ' + err.message);
     }
+  }
+
+  displayYayoiTrialBalanceResult(result) {
+    const resultArea = document.getElementById('yayoiImportResultArea');
+    if (!resultArea) return;
+
+    let title = '残高試算表（B/S・P/L）の取り込みが完了しました！';
+    if (result.type === 'bs_only') title = '貸借対照表（B/S）の取り込みが完了しました！';
+    else if (result.type === 'pl_only') title = '損益計算書（P/L）の取り込みが完了しました！';
+
+    // 更新された口座リストのHTML
+    let accountsHtml = '';
+    if (result.accountDetails && result.accountDetails.length > 0) {
+      accountsHtml = `
+        <div class="mt-1 pt-1 border-t border-blue-200">
+          <div class="text-[10px] text-blue-800 font-bold mb-1">【確定された銀行口座の現在高】</div>
+          <div class="flex flex-wrap gap-1.5">
+            ${result.accountDetails.map(a => `
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-white text-blue-900 border border-blue-200 shadow-2xs">
+                ${a.name}: ¥${Number(a.balance).toLocaleString()}
+              </span>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    resultArea.className = 'p-3.5 rounded-xl border border-blue-300 bg-blue-50 text-blue-950 text-xs space-y-1.5';
+    resultArea.innerHTML = `
+      <div class="font-bold flex items-center text-blue-900 text-sm">
+        <svg class="w-4 h-4 mr-1 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+        <span>${title}</span>
+      </div>
+      <div class="text-[11px] text-blue-900 mt-1 space-y-1">
+        ${result.hasBSData ? `<div>・更新された銀行口座: <strong>${result.updatedAccountCount} 口座</strong>（現在高を自動反映）</div>` : ''}
+        ${accountsHtml}
+        ${result.hasPLData ? `<div class="mt-1">・売上高累計: <strong>¥${(result.sales || 0).toLocaleString()}</strong> / 経常利益: <strong>¥${(result.ordinaryProfit || 0).toLocaleString()}</strong></div>` : ''}
+        <div>・本業キャッシュフロー（営業CF）: <strong class="${result.operatingCF >= 0 ? 'text-emerald-700' : 'text-rose-700'}">¥${(result.operatingCF || 0).toLocaleString()}</strong></div>
+        <div>・取り込み日時: <strong>${result.lastImportedAt}</strong></div>
+        <div class="text-[10px] text-blue-700 mt-1 font-bold">
+          ${result.type === 'bs_only' ? '💡 続けて「損益計算書（P/L）」を貼り付けると、利益とキャッシュフローも完全合体します！' : 
+            (result.type === 'pl_only' ? '💡 続けて「貸借対照表（B/S）」を貼り付けると、通帳残高とキャッシュフローも完全合体します！' : '✅ 貸借対照表・損益計算書・キャッシュフロー計算書がすべて揃いました！')}
+        </div>
+      </div>
+    `;
+    resultArea.classList.remove('hidden');
   }
 
   handleLoadSampleYayoi() {
@@ -3829,31 +4043,69 @@ class StoneApp {
 
   handleMisocaFileSelect(e) {
     if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        try {
-          const text = evt.target.result;
-          const result = window.stoneStore.importMisocaCSV(text, file.name);
-          const resultArea = document.getElementById('misocaImportResultArea');
-          if (resultArea) {
-            resultArea.className = 'p-3 rounded-xl border border-amber-300 bg-amber-50 text-amber-950 text-xs space-y-0.5';
-            resultArea.innerHTML = `
-              <div class="font-bold text-amber-900">✅ Misocaの請求書CSVを取り込みました</div>
-              <div>・取り込み件数: <strong>${result.count} 件</strong></div>
-              <div>・日時: <strong>${result.lastImportedAt}</strong></div>
-              <div class="text-[10px] text-amber-800 mt-1">※弥生の売掛仕訳と二重計上されないよう日別資金繰り表に同期されました。</div>
-            `;
-            resultArea.classList.remove('hidden');
-          }
-          this.showToast(`Misocaの請求書（${result.count}件）を取り込みました！`);
-          this.render();
-        } catch (err) {
-          alert('Misoca CSV取り込みエラー: ' + err.message);
-        }
-      };
-      reader.readAsText(file, 'UTF-8');
+      this.processMisocaFile(e.target.files[0]);
     }
+  }
+
+  processMisocaFile(file) {
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const buffer = evt.target.result;
+        // 文字コード自動判定（Shift-JIS / UTF-8）
+        let text = '';
+        try {
+          const sjisDecoder = new TextDecoder('shift-jis', { fatal: false });
+          const sjisText = sjisDecoder.decode(buffer);
+          if (sjisText.includes('請求書') || sjisText.includes('請求先') || sjisText.includes('金額') || sjisText.includes('番号')) {
+            text = sjisText;
+          }
+        } catch (e) {}
+
+        if (!text) {
+          const utf8Decoder = new TextDecoder('utf-8', { fatal: false });
+          text = utf8Decoder.decode(buffer);
+        }
+
+        const result = window.stoneStore.importMisocaCSV(text, file.name);
+        this.renderMisocaImportResult(result);
+      } catch (err) {
+        alert('Misoca CSV取り込みエラー: ' + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  handleProcessMisocaPaste() {
+    const textarea = document.getElementById('misocaPasteText');
+    if (!textarea || !textarea.value.trim()) {
+      alert('貼り付け枠にMisocaの請求書データが入力されていません。');
+      return;
+    }
+    try {
+      const text = textarea.value.trim();
+      const result = window.stoneStore.importMisocaCSV(text, '貼り付け請求書データ.csv');
+      this.renderMisocaImportResult(result);
+      textarea.value = '';
+    } catch (err) {
+      alert('Misoca 貼り付けデータ取り込みエラー: ' + err.message);
+    }
+  }
+
+  renderMisocaImportResult(result) {
+    const resultArea = document.getElementById('misocaImportResultArea');
+    if (resultArea) {
+      resultArea.className = 'p-3 rounded-xl border border-amber-300 bg-amber-50 text-amber-950 text-xs space-y-0.5';
+      resultArea.innerHTML = `
+        <div class="font-bold text-amber-900">✅ Misocaの請求書データを取り込みました</div>
+        <div>・取り込み件数: <strong>${result.count} 件</strong></div>
+        <div>・日時: <strong>${result.lastImportedAt}</strong></div>
+        <div class="text-[10px] text-amber-800 mt-1">※弥生の売掛仕訳と二重計上されないよう日別資金繰り表に同期されました。</div>
+      `;
+      resultArea.classList.remove('hidden');
+    }
+    this.showToast(`Misocaの請求書（${result.count}件）を取り込みました！`);
+    this.render();
   }
 
   handleLoadSampleMisoca() {
@@ -4168,3 +4420,29 @@ class StoneApp {
 document.addEventListener('DOMContentLoaded', () => {
   window.app = new StoneApp();
 });
+
+// ==============================================================
+// ブラウザ全体でのファイルドロップ誤動作（CSVが新しい画面で開く現象）を100%完全根絶
+// ==============================================================
+window.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+}, true);
+
+window.addEventListener('drop', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    const file = e.dataTransfer.files[0];
+    const name = file.name || '';
+    if (name.includes('Misoca') || name.includes('Invoice') || name.includes('請求')) {
+      if (window.app && window.app.processMisocaFile) {
+        window.app.processMisocaFile(file);
+      }
+    } else if (name.includes('仕訳') || name.includes('残高') || name.includes('貸借') || name.includes('損益') || name.endsWith('.csv') || name.endsWith('.xlsx')) {
+      if (window.app && window.app.processYayoiFile) {
+        window.app.processYayoiFile(file);
+      }
+    }
+  }
+}, true);
