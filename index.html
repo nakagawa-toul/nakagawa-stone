@@ -186,9 +186,45 @@
                 <span class="text-xs text-sky-400 font-bold uppercase tracking-wider">🏦 今日現在の資金繰り状況</span>
                 <span class="bg-emerald-500/20 text-emerald-300 text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/30 font-medium">5銀行口座＋手許現金（計6財布）</span>
               </div>
-                            <div class="flex items-center space-x-2 mt-1">
+                            <div class="flex flex-wrap items-center gap-2 mt-1">
                 <div class="text-xs text-slate-400 font-medium">全口座合計 手元資金:</div>
                 <div id="topTotalCash" class="text-2xl sm:text-4xl font-black text-white tracking-tight">¥0</div>
+                <a href="https://docs.google.com/spreadsheets/d/11bCt4mXclylQYrMAydtdVdgybNewbp5N-t0qpbTzNjU/edit" target="_blank" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-1 rounded-lg border border-emerald-400/40 shadow-sm transition flex items-center space-x-1" title="Googleスプレッドシート原本を開く">
+                  <span>📊 スプレッドシート原本 ↗</span>
+                </a>
+                <button id="btnSyncSpreadsheetTop" class="text-[11px] bg-blue-600 hover:bg-blue-500 text-white font-bold px-2.5 py-1 rounded-lg border border-blue-400/40 shadow-sm transition flex items-center space-x-1" title="最新スプレッドシートデータを取り込む">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                  <span>最新同期</span>
+                </button>
+              </div>
+              
+              <!-- スプレッドシート連動：今月の主要出金サマリーチップ -->
+              <div id="topSpreadsheetChips" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-2 border-t border-slate-700/60 text-xs">
+                <div class="bg-slate-800/80 p-2 rounded-lg border border-slate-700">
+                  <span class="text-[10px] text-slate-400 block font-bold">今月 洋外注費</span>
+                  <span id="chipYoSubcontract" class="text-xs sm:text-sm font-black text-amber-300">¥0</span>
+                </div>
+                <div class="bg-slate-800/80 p-2 rounded-lg border border-slate-700">
+                  <span class="text-[10px] text-slate-400 block font-bold">今月 外注費</span>
+                  <span id="chipSubcontract" class="text-xs sm:text-sm font-black text-sky-300">¥0</span>
+                </div>
+                <div class="bg-slate-800/80 p-2 rounded-lg border border-slate-700">
+                  <span class="text-[10px] text-slate-400 block font-bold">今月 商品仕入</span>
+                  <span id="chipCogs" class="text-xs sm:text-sm font-black text-rose-300">¥0</span>
+                </div>
+                <div class="bg-slate-800/80 p-2 rounded-lg border border-amber-900/60 bg-amber-950/20">
+                  <span class="text-[10px] text-amber-400 block font-bold">今月 事業主消費</span>
+                  <span id="chipOwnerExpense" class="text-xs sm:text-sm font-black text-amber-300">¥0</span>
+                </div>
+                <div class="bg-slate-800/80 p-2 rounded-lg border border-slate-700">
+                  <span class="text-[10px] text-slate-400 block font-bold">今月 借入返済</span>
+                  <span id="chipLoanRepay" class="text-xs sm:text-sm font-black text-purple-300">¥0</span>
+                </div>
+                <div class="bg-slate-800/80 p-2 rounded-lg border border-amber-900/60 bg-amber-950/20">
+                  <span class="text-[10px] text-amber-400 block font-bold">今月 税金見込</span>
+                  <span id="chipTax" class="text-xs sm:text-sm font-black text-amber-300">¥0</span>
+                </div>
+              </div>
                 <span id="yayoiLastImportBadge" class="hidden sm:inline text-[10px] bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 border border-indigo-500/40 px-2 py-0.5 rounded ml-2 cursor-pointer transition" title="クリックして弥生CSVを取り込む">弥生連携: 未取り込み</span>
               </div>
             </div>
@@ -643,9 +679,20 @@
                 <div class="flex flex-wrap items-center gap-2">
                   <!-- 表示切り替えトグル -->
                   <div class="flex items-center bg-slate-100 p-1 rounded-lg text-xs font-bold border border-slate-200">
-                    <button id="btnDailyViewTotal" class="px-2.5 py-1 rounded-md bg-white text-blue-700 shadow-sm transition">全口座合計</button>
+                    <button id="btnDailyViewSpreadsheet" class="px-2.5 py-1 rounded-md bg-white text-blue-700 shadow-sm transition font-bold">📊 スプレッドシート連動表</button>
+                    <button id="btnDailyViewTotal" class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition">全口座合計</button>
                     <button id="btnDailyViewMatrix" class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition">口座別マトリクス</button>
                   </div>
+
+                  <a href="https://docs.google.com/spreadsheets/d/11bCt4mXclylQYrMAydtdVdgybNewbp5N-t0qpbTzNjU/edit" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow transition flex items-center space-x-1" title="Googleスプレッドシートを開く">
+                    <span>スプレッドシート原本 ↗</span>
+                  </a>
+
+                  <label for="inputSpreadsheetFile" class="cursor-pointer bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow transition flex items-center space-x-1" title="スプレッドシートのCSV/Excelを直接取り込む">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    <span>CSV/Excel取込</span>
+                    <input type="file" id="inputSpreadsheetFile" accept=".csv,.xlsx" class="hidden" />
+                  </label>
 
                   <button id="btnDailyOpenTransferModal" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow transition flex items-center space-x-1">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>

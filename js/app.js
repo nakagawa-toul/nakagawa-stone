@@ -7,7 +7,7 @@ class StoneApp {
   constructor() {
     this.currentView = 'home';
     this.fundsSubtab = 'statement';
-    this.dailyScheduleViewMode = 'total'; // 'total' | 'matrix'
+    this.dailyScheduleViewMode = 'spreadsheet'; // 'total' | 'matrix'
     this.bsplTab = 'pl'; // 'pl' | 'bs' | 'cf' // 'statement' | 'breakdown' | 'overview'
     this.taskFilter = 'all'; // 'all' | 'overdue' | 'today' | 'week' | 'completed'
     this.cashFlowChart = null;
@@ -537,7 +537,7 @@ class StoneApp {
     const btnDailyViewMatrix = document.getElementById('btnDailyViewMatrix');
     if (btnDailyViewTotal && btnDailyViewMatrix) {
       btnDailyViewTotal.addEventListener('click', () => {
-        this.dailyScheduleViewMode = 'total';
+        this.dailyScheduleViewMode = 'spreadsheet';
         btnDailyViewTotal.className = 'px-2.5 py-1 rounded-md bg-white text-blue-700 shadow-sm transition font-bold';
         btnDailyViewMatrix.className = 'px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition font-medium';
         this.renderDailyCashFlowSchedule();
@@ -2905,6 +2905,30 @@ class StoneApp {
     const kpis = window.stoneStore.getDashboardKPIs();
     
     // 1. 全口座合計手元資金
+        // スプレッドシート連動 サマリーチップの更新
+    const summary = window.stoneStore.getCashflowSummary ? window.stoneStore.getCashflowSummary(this.todayStr) : null;
+    if (summary) {
+      const chipYo = document.getElementById('chipYoSubcontract');
+      const chipSub = document.getElementById('chipSubcontract');
+      const chipCogs = document.getElementById('chipCogs');
+      const chipOwner = document.getElementById('chipOwnerExpense');
+      const chipRepay = document.getElementById('chipLoanRepay');
+      const chipTax = document.getElementById('chipTax');
+
+      if (chipYo) chipYo.textContent = `¥${summary.monthYoSubcontract.toLocaleString()}`;
+      if (chipSub) chipSub.textContent = `¥${summary.monthSubcontract.toLocaleString()}`;
+      if (chipCogs) chipCogs.textContent = `¥${summary.monthCogs.toLocaleString()}`;
+      if (chipOwner) chipOwner.textContent = `¥${summary.monthOwnerExpense.toLocaleString()}`;
+      if (chipRepay) chipRepay.textContent = `¥${summary.monthLoanRepay.toLocaleString()}`;
+      if (chipTax) chipTax.textContent = `¥${summary.monthTax.toLocaleString()}`;
+
+      // 残高もスプレッドシートの今日残高を優先反映
+      const topTotalCash = document.getElementById('topTotalCash');
+      if (topTotalCash && summary.todayBalance > 0) {
+        topTotalCash.textContent = `¥${summary.todayBalance.toLocaleString()}`;
+      }
+    }
+
     const topTotalCash = document.getElementById('topTotalCash');
     if (topTotalCash) {
       topTotalCash.textContent = `¥${kpis.totalCurrentCash.toLocaleString()}`;
@@ -3098,7 +3122,102 @@ class StoneApp {
       return;
     }
 
-    if (this.dailyScheduleViewMode === 'total') {
+    if (this.dailyScheduleViewMode === 'spreadsheet') {
+      // ==========================================================
+      // ビュー S: Googleスプレッドシート（資金繰表メイン）完全一致ビュー
+      // ==========================================================
+      const spreadsheetData = window.stoneStore.getCashflowDailySchedule();
+      const today = this.todayStr;
+
+      let html = `
+        <thead class="bg-slate-900 text-white font-bold text-[10px] border-b border-slate-800">
+          <tr>
+            <th class="py-2.5 px-3 sticky left-0 bg-slate-900 z-10 whitespace-nowrap">日付</th>
+            <th class="py-2.5 px-2 text-center whitespace-nowrap">曜日</th>
+            <th class="py-2.5 px-3 text-left whitespace-nowrap min-w-[130px]">備考・主要予定</th>
+            <th class="py-2.5 px-3 text-right bg-blue-900/90 text-cyan-300 font-black whitespace-nowrap">総合残高</th>
+            <th class="py-2.5 px-3 text-right text-emerald-400 whitespace-nowrap">入金合計</th>
+            <th class="py-2.5 px-3 text-right text-emerald-200 whitespace-nowrap">売上入金</th>
+            <th class="py-2.5 px-3 text-right text-rose-400 whitespace-nowrap">出金合計</th>
+            <th class="py-2.5 px-3 text-right whitespace-nowrap">洋外注費</th>
+            <th class="py-2.5 px-3 text-right whitespace-nowrap">外注費</th>
+            <th class="py-2.5 px-3 text-right whitespace-nowrap">商品仕入</th>
+            <th class="py-2.5 px-3 text-right whitespace-nowrap">一般経費</th>
+            <th class="py-2.5 px-3 text-right text-purple-300 whitespace-nowrap">借入返済</th>
+            <th class="py-2.5 px-3 text-right bg-amber-950 text-amber-300 whitespace-nowrap border-l border-amber-800">事業主消費</th>
+            <th class="py-2.5 px-3 text-right bg-amber-950 text-amber-300 whitespace-nowrap">源泉・所得税</th>
+            <th class="py-2.5 px-3 text-right bg-amber-950 text-amber-300 whitespace-nowrap">消費税・法人税</th>
+            <th class="py-2.5 px-2 text-right whitespace-nowrap">その他</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 text-[11px]">
+      `;
+
+      spreadsheetData.forEach(item => {
+        const isToday = item.date === today;
+        const isPast = item.date < today;
+        const isSat = item.weekday === '土';
+        const isSun = item.weekday === '日';
+
+        const rowBg = isToday ? 'bg-amber-50/80 font-bold' : isPast ? 'bg-slate-50/40 text-slate-500' : 'hover:bg-blue-50/30';
+        const weekdayColor = isSun ? 'text-rose-600 bg-rose-50' : isSat ? 'text-sky-600 bg-sky-50' : 'text-slate-600';
+
+        html += `
+          <tr class="${rowBg} transition border-b border-slate-100">
+            <td class="py-2 px-3 sticky left-0 ${isToday ? 'bg-amber-100/90' : 'bg-white'} z-10 font-bold whitespace-nowrap">
+              ${isToday ? '<span class="text-[10px] bg-amber-500 text-white px-1.5 py-0.2 rounded font-bold mr-1">本日</span>' : ''}${item.date}
+            </td>
+            <td class="py-2 px-2 text-center font-bold whitespace-nowrap ${weekdayColor}">${item.weekday}</td>
+            <td class="py-2 px-3 text-left text-slate-700 whitespace-nowrap max-w-[200px] truncate" title="${item.remarks}">
+              ${item.remarks || '<span class="text-slate-300">-</span>'}
+            </td>
+            <td class="py-2 px-3 text-right font-black text-blue-900 bg-blue-50/50 whitespace-nowrap">
+              ¥${(item.balance || 0).toLocaleString()}
+            </td>
+            <td class="py-2 px-3 text-right font-bold text-emerald-700 whitespace-nowrap">
+              ${item.incomeTotal > 0 ? `¥${item.incomeTotal.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+            </td>
+            <td class="py-2 px-3 text-right text-emerald-600 whitespace-nowrap">
+              ${item.salesIncome > 0 ? `¥${item.salesIncome.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+            </td>
+            <td class="py-2 px-3 text-right font-bold text-rose-700 whitespace-nowrap">
+              ${item.expenseTotal > 0 ? `¥${item.expenseTotal.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+            </td>
+            <td class="py-2 px-3 text-right font-semibold whitespace-nowrap">
+              ${item.yoSubcontract > 0 ? `<span class="text-amber-800 font-bold">¥${item.yoSubcontract.toLocaleString()}</span>` : '<span class="text-slate-300">-</span>'}
+            </td>
+            <td class="py-2 px-3 text-right whitespace-nowrap">
+              ${item.subcontract > 0 ? `¥${item.subcontract.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+            </td>
+            <td class="py-2 px-3 text-right whitespace-nowrap">
+              ${item.cogs > 0 ? `¥${item.cogs.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+            </td>
+            <td class="py-2 px-3 text-right text-slate-600 whitespace-nowrap">
+              ${item.genExpense > 0 ? `¥${item.genExpense.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+            </td>
+            <td class="py-2 px-3 text-right text-purple-700 font-semibold whitespace-nowrap">
+              ${item.loanRepay > 0 ? `¥${item.loanRepay.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+            </td>
+            <td class="py-2 px-3 text-right bg-amber-50 text-amber-900 font-bold whitespace-nowrap border-l border-amber-200">
+              ${item.ownerExpense > 0 ? `¥${item.ownerExpense.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+            </td>
+            <td class="py-2 px-3 text-right bg-amber-50 text-amber-900 whitespace-nowrap">
+              ${item.withholdingTax > 0 ? `¥${item.withholdingTax.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+            </td>
+            <td class="py-2 px-3 text-right bg-amber-50 text-amber-900 whitespace-nowrap">
+              ${item.consumptionTax > 0 ? `¥${item.consumptionTax.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+            </td>
+            <td class="py-2 px-2 text-right text-slate-400 whitespace-nowrap">
+              ${item.otherExpense > 0 ? `¥${item.otherExpense.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+            </td>
+          </tr>
+        `;
+      });
+
+      html += '</tbody>';
+      table.innerHTML = html;
+
+    } else if (this.dailyScheduleViewMode === 'total') {
       // ----------------------------------------------------------
       // ビュー A: 全社合計ビュー
       // ----------------------------------------------------------
