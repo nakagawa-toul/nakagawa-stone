@@ -92,3 +92,13 @@ button {
 input, select, textarea {
   font-family: inherit;
 }
+
+/* モーダルが非表示時に画面を覆ってタップを阻害する現象を100%防止 */
+.hidden {
+  display: none !important;
+}
+.modal-backdrop.hidden,
+div[id^="modal"].hidden {
+  display: none !important;
+  pointer-events: none !important;
+}

@@ -2454,3 +2454,7 @@ class StoneAppStore {
   }
 
 }
+
+window.EXPENSE_CATEGORIES = EXPENSE_CATEGORIES;
+window.INCOME_CATEGORIES = INCOME_CATEGORIES;
+window.stoneStore = new StoneAppStore();
