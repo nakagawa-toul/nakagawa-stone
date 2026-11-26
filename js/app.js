@@ -1967,457 +1967,215 @@ class StoneApp {
   // --------------------------------------------------------------
   // 2-E. 日繰り表（日別・支払集中日カレンダー）
   // --------------------------------------------------------------
+    // ==============================================================
+  // 5口座＋手許現金 日別資金繰り（スマホ最適化サマリー ＆ カレンダー）
+  // ==============================================================
   renderDailyCashFlowSchedule() {
-    const tbody = document.getElementById('dailyCashFlowTableBody');
-    if (!tbody) return;
+    const spreadsheetData = window.stoneStore.getCashflowDailySchedule();
+    const today = this.todayStr;
 
-    const list = window.stoneStore.calculateDailyCashFlowSchedule();
+    // ------------------------------------------------------------
+    // 1. 今月のまとまった合計値の集計＆カード反映
+    // ------------------------------------------------------------
+    const summary = window.stoneStore.getCashflowSummary ? window.stoneStore.getCashflowSummary(today) : null;
+    if (summary) {
+      // メイン3数値
+      const elCurBal = document.getElementById('cashflowCardCurrentBal');
+      const elMonthExp = document.getElementById('cashflowCardMonthExpense');
+      const elMonthInc = document.getElementById('cashflowCardMonthIncome');
+      const elEndBal = document.getElementById('cashflowCardMonthEndBal');
+      const badgeTotalExp = document.getElementById('badgeTotalExpenseSummary');
 
-    if (list.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-400 text-xs">基準日以降の入出金予定はありません</td></tr>';
-      return;
-    }
+      if (elCurBal) elCurBal.textContent = `¥${summary.todayBalance.toLocaleString()}`;
+      if (elMonthExp) elMonthExp.textContent = `¥${summary.monthExpense.toLocaleString()}`;
+      if (elMonthInc) elMonthInc.textContent = `¥${summary.monthIncome.toLocaleString()}`;
+      if (badgeTotalExp) badgeTotalExp.textContent = `支払総額: ¥${summary.monthExpense.toLocaleString()}`;
 
-    tbody.innerHTML = list.map(item => {
-      // バッジの判定
-      let badgeHtml = '';
-      if (item.isPayday) {
-        badgeHtml = '<span class="bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-300">給料日</span>';
-      } else if (item.isLoanDay) {
-        badgeHtml = '<span class="bg-purple-100 text-purple-900 px-1.5 py-0.5 rounded text-[10px] font-bold border border-purple-300">公庫引落</span>';
-      } else if (item.isMonthEnd) {
-        badgeHtml = '<span class="bg-rose-100 text-rose-900 px-1.5 py-0.5 rounded text-[10px] font-bold border border-rose-300">月末振込</span>';
-      } else if (item.isHighOutflow) {
-        badgeHtml = '<span class="bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded text-[10px] font-medium border border-rose-200">大型出金</span>';
-      } else {
-        badgeHtml = '<span class="text-slate-400 text-[10px]">通常</span>';
+      // 月末着地見込み（11月末日の残高）
+      const monthEndItem = spreadsheetData.filter(d => d.date && d.date.startsWith(today.slice(0, 7))).pop();
+      if (elEndBal && monthEndItem) {
+        elEndBal.textContent = `¥${monthEndItem.balance.toLocaleString()}`;
       }
 
-      return `
-        <tr class="hover:bg-slate-50 transition ${item.isPayday || item.isMonthEnd ? 'bg-amber-50/20' : ''}">
-          <td class="py-2.5 px-3 font-bold text-slate-800 whitespace-nowrap">${item.date}</td>
-          <td class="py-2.5 px-2 whitespace-nowrap">${badgeHtml}</td>
-          <td class="py-2.5 px-3 text-right font-bold text-emerald-700 whitespace-nowrap">
-            ${item.income > 0 ? `+¥${item.income.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+      // 内訳カード
+      const elCogs = document.getElementById('sumCogs');
+      const elYo = document.getElementById('sumYoSubcontract');
+      const elLoan = document.getElementById('sumLoanRepay');
+      const elSub = document.getElementById('sumSubcontract');
+      const elOwner = document.getElementById('sumOwnerExpense');
+      const elGen = document.getElementById('sumGenExpense');
+      const elTax = document.getElementById('sumTax');
+
+      if (elCogs) elCogs.textContent = `¥${summary.monthCogs.toLocaleString()}`;
+      if (elYo) elYo.textContent = `¥${summary.monthYoSubcontract.toLocaleString()}`;
+      if (elLoan) elLoan.textContent = `¥${summary.monthLoanRepay.toLocaleString()}`;
+      if (elSub) elSub.textContent = `¥${summary.monthSubcontract.toLocaleString()}`;
+      if (elOwner) elOwner.textContent = `¥${summary.monthOwnerExpense.toLocaleString()}`;
+      if (elGen) elGen.textContent = `¥${summary.monthExpense > 0 ? (summary.monthExpense - summary.monthCogs - summary.monthYoSubcontract - summary.monthLoanRepay - summary.monthSubcontract - summary.monthOwnerExpense - summary.monthTax).toLocaleString() : '0'}`;
+      if (elTax) elTax.textContent = `¥${summary.monthTax.toLocaleString()}`;
+    }
+
+    // ------------------------------------------------------------
+    // 2. スマホ用「お金が動く日だけ」のスケジュールカード一覧
+    // ------------------------------------------------------------
+    const mobileContainer = document.getElementById('cashflowEventsMobileList');
+    if (mobileContainer) {
+      // 入金または出金がある日だけを抽出（未来＆直近）
+      const activeDays = spreadsheetData.filter(d => (d.incomeTotal > 0 || d.expenseTotal > 0));
+
+      if (activeDays.length === 0) {
+        mobileContainer.innerHTML = '<div class="p-4 bg-slate-50 text-slate-400 text-center rounded-xl text-xs">予定されている入出金はありません</div>';
+      } else {
+        mobileContainer.innerHTML = activeDays.map(item => {
+          const isToday = item.date === today;
+          const isPast = item.date < today;
+
+          // 出金の内訳タグ生成
+          let expenseBadges = [];
+          if (item.yoSubcontract > 0) expenseBadges.push(`<span class="bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.5 rounded text-[10px] font-bold">洋外注費: ¥${item.yoSubcontract.toLocaleString()}</span>`);
+          if (item.subcontract > 0) expenseBadges.push(`<span class="bg-blue-100 text-blue-900 border border-blue-200 px-1.5 py-0.5 rounded text-[10px] font-bold">外注費: ¥${item.subcontract.toLocaleString()}</span>`);
+          if (item.cogs > 0) expenseBadges.push(`<span class="bg-rose-100 text-rose-900 border border-rose-200 px-1.5 py-0.5 rounded text-[10px] font-bold">商品仕入: ¥${item.cogs.toLocaleString()}</span>`);
+          if (item.loanRepay > 0) expenseBadges.push(`<span class="bg-purple-100 text-purple-900 border border-purple-200 px-1.5 py-0.5 rounded text-[10px] font-bold">返済(3本): ¥${item.loanRepay.toLocaleString()}</span>`);
+          if (item.ownerExpense > 0) expenseBadges.push(`<span class="bg-amber-200 text-amber-950 border border-amber-400 px-1.5 py-0.5 rounded text-[10px] font-bold">事業主消費: ¥${item.ownerExpense.toLocaleString()}</span>`);
+          if (item.withholdingTax > 0 || item.consumptionTax > 0) expenseBadges.push(`<span class="bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.5 rounded text-[10px] font-bold">税金納付: ¥${((item.withholdingTax||0)+(item.consumptionTax||0)).toLocaleString()}</span>`);
+          if (item.genExpense > 0) expenseBadges.push(`<span class="bg-slate-100 text-slate-700 border border-slate-200 px-1.5 py-0.5 rounded text-[10px]">一般経費: ¥${item.genExpense.toLocaleString()}</span>`);
+
+          return `
+            <div class="p-3.5 rounded-xl border ${isToday ? 'border-amber-400 bg-amber-50/40 shadow-sm ring-1 ring-amber-300' : isPast ? 'border-slate-200 bg-slate-50/50 opacity-75' : 'border-slate-200 bg-white shadow-sm'} transition space-y-2">
+              
+              <!-- 上段：日付・曜日・残高 -->
+              <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-1.5">
+                  ${isToday ? '<span class="bg-amber-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded">本日</span>' : ''}
+                  <span class="text-xs sm:text-sm font-black text-slate-900">${item.date} (${item.weekday})</span>
+                </div>
+                <div class="text-right">
+                  <span class="text-[10px] text-slate-400 block font-medium">手元資金 (残高)</span>
+                  <span class="text-xs sm:text-sm font-black text-blue-900">¥${item.balance.toLocaleString()}</span>
+                </div>
+              </div>
+
+              <!-- 中段：備考・内容 -->
+              ${item.remarks ? `
+                <div class="text-xs font-bold text-slate-800 bg-slate-100/80 px-2 py-1 rounded-lg">
+                  📌 ${this.escapeHtml(item.remarks)}
+                </div>
+              ` : ''}
+
+              <!-- 下段：入金と出金の金額表示 -->
+              <div class="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                <div>
+                  ${item.incomeTotal > 0 ? `
+                    <span class="text-emerald-700 font-extrabold flex items-center">
+                      <span class="text-[10px] bg-emerald-100 px-1 rounded mr-1">入金</span>
+                      +¥${item.incomeTotal.toLocaleString()}
+                    </span>
+                  ` : '<span class="text-slate-300 text-[11px]">入金なし</span>'}
+                </div>
+                <div>
+                  ${item.expenseTotal > 0 ? `
+                    <span class="text-rose-700 font-extrabold flex items-center">
+                      <span class="text-[10px] bg-rose-100 px-1 rounded mr-1">出金</span>
+                      -¥${item.expenseTotal.toLocaleString()}
+                    </span>
+                  ` : '<span class="text-slate-300 text-[11px]">出金なし</span>'}
+                </div>
+              </div>
+
+              <!-- 内訳チップ群 -->
+              ${expenseBadges.length > 0 ? `
+                <div class="flex flex-wrap gap-1 pt-1">
+                  ${expenseBadges.join('')}
+                </div>
+              ` : ''}
+
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    // ------------------------------------------------------------
+    // 3. 折りたたみ式テーブル（PC・詳細用）のレンダリング
+    // ------------------------------------------------------------
+    const table = document.getElementById('dailyScheduleTable');
+    if (!table) return;
+
+    let html = `
+      <thead class="bg-slate-900 text-white font-bold text-[10px] border-b border-slate-800">
+        <tr>
+          <th class="py-2.5 px-3 sticky left-0 bg-slate-900 z-10 whitespace-nowrap">日付</th>
+          <th class="py-2.5 px-2 text-center whitespace-nowrap">曜日</th>
+          <th class="py-2.5 px-3 text-left whitespace-nowrap min-w-[130px]">備考・主要予定</th>
+          <th class="py-2.5 px-3 text-right bg-blue-900/90 text-cyan-300 font-black whitespace-nowrap">総合残高</th>
+          <th class="py-2.5 px-3 text-right text-emerald-400 whitespace-nowrap">入金合計</th>
+          <th class="py-2.5 px-3 text-right text-rose-400 whitespace-nowrap">出金合計</th>
+          <th class="py-2.5 px-3 text-right whitespace-nowrap">洋外注費</th>
+          <th class="py-2.5 px-3 text-right whitespace-nowrap">外注費</th>
+          <th class="py-2.5 px-3 text-right whitespace-nowrap">商品仕入</th>
+          <th class="py-2.5 px-3 text-right whitespace-nowrap">一般経費</th>
+          <th class="py-2.5 px-3 text-right text-purple-300 whitespace-nowrap">借入返済</th>
+          <th class="py-2.5 px-3 text-right bg-amber-950 text-amber-300 whitespace-nowrap border-l border-amber-800">事業主消費</th>
+          <th class="py-2.5 px-3 text-right bg-amber-950 text-amber-300 whitespace-nowrap">税金納付</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100 text-[11px]">
+    `;
+
+    spreadsheetData.forEach(item => {
+      const isToday = item.date === today;
+      const isPast = item.date < today;
+      const isSat = item.weekday === '土';
+      const isSun = item.weekday === '日';
+
+      const rowBg = isToday ? 'bg-amber-50/80 font-bold' : isPast ? 'bg-slate-50/40 text-slate-500' : 'hover:bg-blue-50/30';
+      const weekdayColor = isSun ? 'text-rose-600 bg-rose-50' : isSat ? 'text-sky-600 bg-sky-50' : 'text-slate-600';
+
+      html += `
+        <tr class="${rowBg} transition border-b border-slate-100">
+          <td class="py-2 px-3 sticky left-0 ${isToday ? 'bg-amber-100/90' : 'bg-white'} z-10 font-bold whitespace-nowrap">
+            ${isToday ? '<span class="text-[10px] bg-amber-500 text-white px-1.5 py-0.2 rounded font-bold mr-1">本日</span>' : ''}${item.date}
           </td>
-          <td class="py-2.5 px-3 text-right font-bold text-rose-700 whitespace-nowrap">
-            ${item.expense > 0 ? `-¥${item.expense.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+          <td class="py-2 px-2 text-center font-bold whitespace-nowrap ${weekdayColor}">${item.weekday}</td>
+          <td class="py-2 px-3 text-left text-slate-700 whitespace-nowrap max-w-[180px] truncate" title="${item.remarks}">
+            ${item.remarks || '<span class="text-slate-300">-</span>'}
           </td>
-          <td class="py-2.5 px-3 text-right font-extrabold whitespace-nowrap ${item.net >= 0 ? 'text-emerald-700' : 'text-rose-700'}">
-            ${item.net >= 0 ? '+' : ''}¥${item.net.toLocaleString()}
+          <td class="py-2 px-3 text-right font-black text-blue-900 bg-blue-50/50 whitespace-nowrap">
+            ¥${(item.balance || 0).toLocaleString()}
           </td>
-          <td class="py-2.5 px-3 text-right font-black text-slate-900 whitespace-nowrap bg-slate-50/70">
-            ¥${item.balance.toLocaleString()}
+          <td class="py-2 px-3 text-right font-bold text-emerald-700 whitespace-nowrap">
+            ${item.incomeTotal > 0 ? `¥${item.incomeTotal.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+          </td>
+          <td class="py-2 px-3 text-right font-bold text-rose-700 whitespace-nowrap">
+            ${item.expenseTotal > 0 ? `¥${item.expenseTotal.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+          </td>
+          <td class="py-2 px-3 text-right font-semibold whitespace-nowrap">
+            ${item.yoSubcontract > 0 ? `<span class="text-amber-800 font-bold">¥${item.yoSubcontract.toLocaleString()}</span>` : '<span class="text-slate-300">-</span>'}
+          </td>
+          <td class="py-2 px-3 text-right whitespace-nowrap">
+            ${item.subcontract > 0 ? `¥${item.subcontract.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+          </td>
+          <td class="py-2 px-3 text-right whitespace-nowrap">
+            ${item.cogs > 0 ? `¥${item.cogs.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+          </td>
+          <td class="py-2 px-3 text-right text-slate-600 whitespace-nowrap">
+            ${item.genExpense > 0 ? `¥${item.genExpense.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+          </td>
+          <td class="py-2 px-3 text-right text-purple-700 font-semibold whitespace-nowrap">
+            ${item.loanRepay > 0 ? `¥${item.loanRepay.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+          </td>
+          <td class="py-2 px-3 text-right bg-amber-50 text-amber-900 font-bold whitespace-nowrap border-l border-amber-200">
+            ${item.ownerExpense > 0 ? `¥${item.ownerExpense.toLocaleString()}` : '<span class="text-slate-300">-</span>'}
+          </td>
+          <td class="py-2 px-3 text-right bg-amber-50 text-amber-900 whitespace-nowrap">
+            ${(item.withholdingTax||0)+(item.consumptionTax||0) > 0 ? `¥${((item.withholdingTax||0)+(item.consumptionTax||0)).toLocaleString()}` : '<span class="text-slate-300">-</span>'}
           </td>
         </tr>
       `;
-    }).join('');
-  }
-
-  // --------------------------------------------------------------
-  // 2-C. 従来の残高推移・未入金・全取引明細
-  // --------------------------------------------------------------
-  renderFundsOverview() {
-    const bank = window.stoneStore.getBankAccount();
-    const sim = window.stoneStore.calculateCashFlowSimulation();
-
-    // 基準日残高表示
-    document.getElementById('bankBaseDateDisplay').textContent = `基準日: ${bank.baseDate}`;
-    document.getElementById('bankBaseBalanceDisplay').textContent = `¥${bank.baseBalance.toLocaleString()}`;
-    document.getElementById('bankNameDisplay').textContent = bank.bankName;
-
-    // サマリー表示
-    const summaryUnreceived = document.getElementById('summaryUnreceived');
-    const summaryUnpaid = document.getElementById('summaryUnpaid');
-    const summaryNet = document.getElementById('summaryNetChange');
-    const finalBalance = document.getElementById('projectedFinalBalance');
-    const minAlert = document.getElementById('minBalanceAlert');
-
-    if (summaryUnreceived) summaryUnreceived.textContent = `+¥${sim.totalUnreceived.toLocaleString()}`;
-    if (summaryUnpaid) summaryUnpaid.textContent = `-¥${sim.totalUnpaid.toLocaleString()}`;
-    
-    const net = sim.totalUnreceived - sim.totalUnpaid;
-    if (summaryNet) {
-      summaryNet.textContent = `${net >= 0 ? '+' : ''}¥${net.toLocaleString()}`;
-      summaryNet.className = `font-bold ${net >= 0 ? 'text-emerald-700' : 'text-rose-700'}`;
-    }
-
-    if (finalBalance) {
-      finalBalance.textContent = `¥${sim.finalProjectedBalance.toLocaleString()}`;
-    }
-
-    // 最低残高警告
-    if (minAlert) {
-      if (sim.minBalance < 1000000) {
-        minAlert.className = 'mt-2 pt-2 border-t border-red-500/50 text-[11px] text-red-300 flex items-center font-bold';
-        minAlert.innerHTML = `⚠️ 警告: ${sim.minDate}に最低残高 ¥${sim.minBalance.toLocaleString()} の見込み（資金ショート注意）`;
-      } else {
-        minAlert.className = 'mt-2 pt-2 border-t border-slate-800/80 text-[11px] text-emerald-300 flex items-center';
-        minAlert.innerHTML = `✅ 期間中の最低残高も ¥${sim.minBalance.toLocaleString()} (${sim.minDate}) を維持できる見通しです`;
-      }
-    }
-
-    // 月別集計サマリー表
-    const monthlyContainer = document.getElementById('monthlySummaryContainer');
-    if (monthlyContainer) {
-      monthlyContainer.innerHTML = sim.monthlySummary.map(m => {
-        const netPositive = m.net >= 0;
-        return `
-          <div class="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-            <div class="flex justify-between items-center font-bold text-slate-800 mb-1">
-              <span>${m.month}月度</span>
-              <span class="${netPositive ? 'text-emerald-700' : 'text-rose-700'}">${netPositive ? '+' : ''}¥${m.net.toLocaleString()}</span>
-            </div>
-            <div class="flex justify-between text-[11px] text-slate-500">
-              <span>入金: <strong class="text-emerald-600">+¥${m.income.toLocaleString()}</strong></span>
-              <span>支払: <strong class="text-rose-600">-¥${m.expense.toLocaleString()}</strong></span>
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
-
-    // Chart.js 残高推移グラフ
-    this.renderCashFlowChart(sim.timeline);
-    this.renderUnreceivedList();
-    this.renderUnpaidList();
-    this.renderTransactionsTable();
-  }
-
-  // 費目（カテゴリ）プルダウンの動的生成
-  populateTxCategorySelect(type, selectedValue = '') {
-    const select = document.getElementById('txInputCategory');
-    if (!select) return;
-
-    if (type === 'income') {
-      select.innerHTML = `
-        <optgroup label="工事売上・収入">
-          <option value="墓石新設代">墓所新設工事代（着工・中間・完工）</option>
-          <option value="改修・補修代">墓所改修・補修工事代</option>
-          <option value="戒名彫刻・納骨">戒名追加彫刻・納骨料</option>
-          <option value="墓じまい代">墓じまい・更地返還工事代</option>
-          <option value="その他収入">その他売上・雑収入</option>
-        </optgroup>
-      `;
-    } else {
-      select.innerHTML = `
-        <optgroup label="原価・仕入・工事費">
-          <option value="石材仕入">石材仕入代（墓石・外柵・納骨部材）</option>
-          <option value="建材仕入">基礎建材費（生コン・セメント・砕石）</option>
-          <option value="重機リース">重機・クレーン・運搬費</option>
-          <option value="外注加工">字彫り・加工外注費</option>
-        </optgroup>
-        <optgroup label="人件費">
-          <option value="給与手当">給与手当・専従者給与・賞与</option>
-        </optgroup>
-        <optgroup label="固定費・現場経費">
-          <option value="車両・燃料">車両費・軽油代・高速代</option>
-          <option value="消耗品・工具">消耗品・切削砥石・ゴム等</option>
-          <option value="損害保険料">損害保険料（車両・請負賠償）</option>
-          <option value="通信・光熱費">水道光熱・事務所通信費</option>
-        </optgroup>
-        <optgroup label="財務・税務">
-          <option value="借入返済">借入金返済（公庫・地銀元金）</option>
-          <option value="税金・積立">租税公課・消費税積立</option>
-          <option value="その他経費">その他雑費・予備費</option>
-        </optgroup>
-      `;
-    }
-
-    if (selectedValue) {
-      select.value = selectedValue;
-    }
-  }
-
-  openBankModal() {
-    const bank = window.stoneStore.getBankAccount();
-    document.getElementById('bankInputBaseDate').value = bank.baseDate;
-    document.getElementById('bankInputBaseBalance').value = bank.baseBalance;
-    document.getElementById('bankInputBankName').value = bank.bankName;
-    document.getElementById('modalBank').classList.remove('hidden');
-  }
-
-  handleBankSubmit() {
-    const baseDate = document.getElementById('bankInputBaseDate').value;
-    const baseBalance = document.getElementById('bankInputBaseBalance').value;
-    const bankName = document.getElementById('bankInputBankName').value.trim();
-
-    window.stoneStore.updateBankAccount(baseDate, baseBalance, bankName);
-    this.showToast('口座基準日と残高を更新しました');
-    document.getElementById('modalBank').classList.add('hidden');
-  }
-
-  openTxModal(tx = null) {
-    const modal = document.getElementById('modalTx');
-    const form = document.getElementById('formTx');
-    const titleEl = document.getElementById('modalTxTitle');
-    const projectSelect = document.getElementById('txInputProject');
-
-    // 案件プルダウン
-    const projects = window.stoneStore.getProjects();
-    projectSelect.innerHTML = '<option value="">なし（共通経費・単発）</option>' + 
-      projects.map(p => `<option value="${p.id}">${this.escapeHtml(p.name)}</option>`).join('');
-
-    if (tx) {
-      titleEl.textContent = '入金・支払予定の編集';
-      document.getElementById('txEditId').value = tx.id;
-      document.getElementById('txInputType').value = tx.type;
-      this.populateTxCategorySelect(tx.type, tx.category);
-      document.getElementById('txInputDate').value = tx.date;
-      document.getElementById('txInputPartner').value = tx.partner;
-      document.getElementById('txInputAmount').value = tx.amount;
-      document.getElementById('txInputProject').value = tx.projectId || '';
-      document.getElementById('txInputIsActual').value = tx.isActual ? 'true' : 'false';
-      document.getElementById('txInputNote').value = tx.note || '';
-    } else {
-      titleEl.textContent = '入金・支払予定の登録';
-      form.reset();
-      document.getElementById('txEditId').value = '';
-      document.getElementById('txInputType').value = 'expense';
-      this.populateTxCategorySelect('expense');
-      document.getElementById('txInputDate').value = this.todayStr;
-    }
-
-    modal.classList.remove('hidden');
-  }
-
-  handleTxSubmit() {
-    const id = document.getElementById('txEditId').value;
-    const txData = {
-      type: document.getElementById('txInputType').value,
-      date: document.getElementById('txInputDate').value,
-      partner: document.getElementById('txInputPartner').value.trim(),
-      amount: document.getElementById('txInputAmount').value,
-      category: document.getElementById('txInputCategory').value,
-      projectId: document.getElementById('txInputProject').value || null,
-      isActual: document.getElementById('txInputIsActual').value === 'true',
-      note: document.getElementById('txInputNote').value.trim()
-    };
-
-    if (id) {
-      window.stoneStore.updateTransaction(id, txData);
-      this.showToast('入出金レコードを更新しました');
-    } else {
-      window.stoneStore.addTransaction(txData);
-      this.showToast('入出金予定を登録しました');
-    }
-
-    document.getElementById('modalTx').classList.add('hidden');
-  }
-
-  renderCashFlowChart(timeline) {
-    const canvas = document.getElementById('cashFlowChart');
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (this.cashFlowChart) {
-      this.cashFlowChart.destroy();
-    }
-
-    const labels = timeline.map(t => t.date.slice(5)); // 'MM-DD'
-    const balances = timeline.map(t => t.balance);
-
-    this.cashFlowChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: '予測口座残高 (円)',
-          data: balances,
-          borderColor: '#2563eb',
-          backgroundColor: 'rgba(37, 99, 235, 0.08)',
-          fill: true,
-          tension: 0.2,
-          pointBackgroundColor: balances.map(b => b < 1000000 ? '#e11d48' : '#2563eb'),
-          pointRadius: 4,
-          pointHoverRadius: 6
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: (context) => `予測残高: ¥${context.raw.toLocaleString()}`
-            }
-          }
-        },
-        scales: {
-          y: {
-            ticks: {
-              callback: (value) => `¥${(value / 10000).toFixed(0)}万`
-            },
-            grid: { color: '#f1f5f9' }
-          },
-          x: {
-            grid: { display: false }
-          }
-        }
-      }
     });
-  }
 
-  renderUnreceivedList() {
-    const container = document.getElementById('unreceivedList');
-    const badge = document.getElementById('unreceivedCountBadge');
-    if (!container) return;
-
-    const txs = window.stoneStore.getTransactions()
-      .filter(tx => tx.type === 'income' && !tx.isActual);
-
-    if (badge) badge.textContent = `${txs.length}件`;
-
-    if (txs.length === 0) {
-      container.innerHTML = '<div class="p-4 text-center text-xs text-slate-400">現在、未入金の予定はありません</div>';
-      return;
-    }
-
-    container.innerHTML = txs.map(tx => `
-      <div class="py-2.5 flex items-center justify-between text-xs">
-        <div>
-          <div class="font-bold text-slate-800">${this.escapeHtml(tx.partner)}</div>
-          <div class="text-[11px] text-slate-400 flex items-center space-x-1.5 mt-0.5">
-            <span>入金予定日: ${tx.date}</span>
-            <span>•</span>
-            <span>${this.escapeHtml(tx.category || '工事代金')}</span>
-          </div>
-        </div>
-        <div class="text-right">
-          <div class="font-extrabold text-emerald-700 text-sm">+¥${tx.amount.toLocaleString()}</div>
-          <button class="tx-actual-toggle-btn text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold px-2 py-0.5 rounded mt-1 hover:bg-emerald-100 transition" data-tx-id="${tx.id}">
-            入金済にする
-          </button>
-        </div>
-      </div>
-    `).join('');
-
-    container.querySelectorAll('.tx-actual-toggle-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        window.stoneStore.toggleTransactionActual(btn.dataset.txId);
-        this.showToast('入金実績として反映しました');
-      });
-    }
-);
-  }
-
-  renderUnpaidList() {
-    const container = document.getElementById('unpaidList');
-    const badge = document.getElementById('unpaidCountBadge');
-    if (!container) return;
-
-    const txs = window.stoneStore.getTransactions()
-      .filter(tx => tx.type === 'expense' && !tx.isActual);
-
-    if (badge) badge.textContent = `${txs.length}件`;
-
-    if (txs.length === 0) {
-      container.innerHTML = '<div class="p-4 text-center text-xs text-slate-400">未払いの予定はありません</div>';
-      return;
-    }
-
-    container.innerHTML = txs.map(tx => `
-      <div class="py-2.5 flex items-center justify-between text-xs">
-        <div>
-          <div class="font-bold text-slate-800">${this.escapeHtml(tx.partner)}</div>
-          <div class="text-[11px] text-slate-400 flex items-center space-x-1.5 mt-0.5">
-            <span>支払期日: ${tx.date}</span>
-            <span>•</span>
-            <span>${this.escapeHtml(tx.category || '仕入・経費')}</span>
-          </div>
-        </div>
-        <div class="text-right">
-          <div class="font-extrabold text-rose-700 text-sm">-¥${tx.amount.toLocaleString()}</div>
-          <button class="tx-actual-toggle-btn text-[10px] bg-rose-50 text-rose-700 border border-rose-300 font-bold px-2 py-0.5 rounded mt-1 hover:bg-rose-100 transition" data-tx-id="${tx.id}">
-            振込済にする
-          </button>
-        </div>
-      </div>
-    `).join('');
-
-    container.querySelectorAll('.tx-actual-toggle-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        window.stoneStore.toggleTransactionActual(btn.dataset.txId);
-        this.showToast('支払実績（振込済）として反映しました');
-      });
-    }
-);
-  }
-
-  renderTransactionsTable() {
-    const tbody = document.getElementById('txTableBody');
-    if (!tbody) return;
-
-    const txs = window.stoneStore.getTransactions();
-
-    if (txs.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-400 text-xs">登録された取引データはありません</td></tr>';
-      return;
-    }
-
-    tbody.innerHTML = txs.map(tx => {
-      const isIncome = tx.type === 'income';
-      return `
-        <tr class="hover:bg-slate-50 transition">
-          <td class="py-2.5 px-3 font-medium text-slate-700 whitespace-nowrap">${tx.date}</td>
-          <td class="py-2.5 px-2 whitespace-nowrap">
-            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${isIncome ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
-              ${isIncome ? '入金' : '支払'}
-            </span>
-          </td>
-          <td class="py-2.5 px-3">
-            <div class="font-bold text-slate-800 flex items-center gap-1.5">
-              <span>${this.escapeHtml(tx.partner)}</span>
-              ${tx.gdriveUrl ? `<a href="${this.escapeHtml(tx.gdriveUrl)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center text-[10px] bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 px-1.5 py-0.5 rounded font-bold" title="Googleドライブで請求書原本を開く">☁️ 請求書原本</a>` : ''}
-            </div>
-            <div class="text-[11px] text-slate-400">${this.escapeHtml(tx.category || '')} ${tx.note ? `• ${this.escapeHtml(tx.note)}` : ''}</div>
-          </td>
-          <td class="py-2.5 px-3 text-right font-extrabold whitespace-nowrap ${isIncome ? 'text-emerald-700' : 'text-rose-700'}">
-            ${isIncome ? '+' : '-'}¥${tx.amount.toLocaleString()}
-          </td>
-          <td class="py-2.5 px-3 text-center whitespace-nowrap">
-            <button class="tx-actual-toggle-btn px-2 py-0.5 rounded text-[11px] font-bold border transition ${tx.isActual ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}" data-tx-id="${tx.id}">
-              ${tx.isActual ? '✓ 実績' : '予定'}
-            </button>
-          </td>
-          <td class="py-2.5 px-2 text-right whitespace-nowrap">
-            <button class="tx-edit-btn p-1 text-slate-400 hover:text-blue-600 transition" data-tx-id="${tx.id}" title="編集">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-            </button>
-            <button class="tx-delete-btn p-1 text-slate-400 hover:text-red-600 transition ml-1" data-tx-id="${tx.id}" title="削除">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-            </button>
-          </td>
-        </tr>
-      `;
-    }).join('');
-
-    tbody.querySelectorAll('.tx-actual-toggle-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        window.stoneStore.toggleTransactionActual(btn.dataset.txId);
-        this.showToast('ステータスを更新しました');
-      });
-    }
-);
-
-    tbody.querySelectorAll('.tx-edit-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const tx = window.stoneStore.getTransactions().find(t => t.id === btn.dataset.txId);
-        if (tx) this.openTxModal(tx);
-      });
-    }
-);
-
-    tbody.querySelectorAll('.tx-delete-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (confirm('この入出金レコードを削除してもよろしいですか？')) {
-          window.stoneStore.deleteTransaction(btn.dataset.txId);
-          this.showToast('取引を削除しました');
-        }
-      });
-    }
-);
+    html += '</tbody>';
+    table.innerHTML = html;
   }
 
   // ==============================================================

@@ -665,102 +665,178 @@
           <!-- ======================================================== -->
           <div id="subtab-panel-cashflow" class="funds-subpanel hidden space-y-4">
             
-            <!-- 日別資金繰り ヘッダー ＆ 操作バー -->
-            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
-              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3 border-slate-100">
-                <div>
-                  <h3 class="text-sm sm:text-base font-bold text-slate-900 flex items-center">
-                    <span>📅 5口座＋手許現金 日別資金繰り・口座別予測表</span>
-                    <span class="ml-2 text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">最優先機能</span>
-                  </h3>
-                  <p class="text-[11px] text-slate-500 mt-0.5">口座別の入出金予定、口座間振替（二重計上なし）、資金ショート警告、支払口座未定の管理</p>
+            <!-- ============================================================ -->
+            <!-- 📱【スマホ最優先】今月のまとまった資金繰り・支払合計ダッシュボード -->
+            <!-- ============================================================ -->
+            
+            <!-- 1. 今月の全体サマリー（大きな数字で一目でわかるカード） -->
+            <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 text-white p-4 sm:p-5 rounded-2xl shadow-md border border-slate-700/80 space-y-3">
+              <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                <div class="flex items-center space-x-2">
+                  <span class="text-xs font-bold text-sky-400">📅 今月（11月度）の資金状況</span>
+                  <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30 font-bold">集計確定</span>
                 </div>
-                
-                <div class="flex flex-wrap items-center gap-2">
-                  <!-- 表示切り替えトグル -->
-                  <div class="flex items-center bg-slate-100 p-1 rounded-lg text-xs font-bold border border-slate-200">
-                    <button id="btnDailyViewSpreadsheet" class="px-2.5 py-1 rounded-md bg-white text-blue-700 shadow-sm transition font-bold">📊 スプレッドシート連動表</button>
-                    <button id="btnDailyViewTotal" class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition">全口座合計</button>
-                    <button id="btnDailyViewMatrix" class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition">口座別マトリクス</button>
-                  </div>
+                <a href="https://docs.google.com/spreadsheets/d/11bCt4mXclylQYrMAydtdVdgybNewbp5N-t0qpbTzNjU/edit" target="_blank" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-2 py-1 rounded border border-slate-600 transition">
+                  スプレッドシート原本 ↗
+                </a>
+              </div>
 
-                  <a href="https://docs.google.com/spreadsheets/d/11bCt4mXclylQYrMAydtdVdgybNewbp5N-t0qpbTzNjU/edit" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow transition flex items-center space-x-1" title="Googleスプレッドシートを開く">
-                    <span>スプレッドシート原本 ↗</span>
-                  </a>
-
-                  <label for="inputSpreadsheetFile" class="cursor-pointer bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow transition flex items-center space-x-1" title="スプレッドシートのCSV/Excelを直接取り込む">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                    <span>CSV/Excel取込</span>
-                    <input type="file" id="inputSpreadsheetFile" accept=".csv,.xlsx" class="hidden" />
-                  </label>
-
-                  <button id="btnDailyOpenTransferModal" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow transition flex items-center space-x-1">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
-                    <span>振替を登録</span>
-                  </button>
-
-                  <button id="btnDailyOpenAddTxModal" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow transition flex items-center space-x-1">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                    <span>入出金を登録</span>
-                  </button>
+              <!-- メイン3数値（現在残高・今月入金・今月支払） -->
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700">
+                  <span class="text-[10px] text-slate-400 block font-medium">手元資金 (現在残高)</span>
+                  <span id="cashflowCardCurrentBal" class="text-lg sm:text-xl font-black text-cyan-300">¥2,440,533</span>
+                </div>
+                <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700">
+                  <span class="text-[10px] text-slate-400 block font-medium">今月の支払合計</span>
+                  <span id="cashflowCardMonthExpense" class="text-lg sm:text-xl font-black text-rose-400">¥1,357,000</span>
+                </div>
+                <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700">
+                  <span class="text-[10px] text-slate-400 block font-medium">今月の入金予定</span>
+                  <span id="cashflowCardMonthIncome" class="text-lg sm:text-xl font-black text-emerald-400">¥1,103,000</span>
+                </div>
+                <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700">
+                  <span class="text-[10px] text-slate-400 block font-medium">月末の着地見込</span>
+                  <span id="cashflowCardMonthEndBal" class="text-lg sm:text-xl font-black text-white">¥2,186,533</span>
+                  <span class="text-[9px] text-emerald-400 block font-bold mt-0.5">✅ 安全水準を維持</span>
                 </div>
               </div>
-
-              <!-- 口座残高インジケーター（6口座） -->
-              <div id="dailyAccountsIndicator" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
-                <!-- JSで動的に口座現在残高を表示 -->
-              </div>
-
-              <!-- 警告バナーエリア -->
-              <div id="dailyAlertsContainer" class="space-y-2"></div>
-
-              <!-- 日別資金繰りテーブル（横スクロール対応） -->
-              <div class="overflow-x-auto border border-slate-200 rounded-lg shadow-sm">
-                <table id="dailyScheduleTable" class="w-full text-xs text-left border-collapse min-w-[700px]">
-                  <!-- JSで動的に構築（全社合計ビュー / 口座別マトリクスビュー） -->
-                </table>
-              </div>
-
-              <!-- 行クリック時の明細表示 ＆ 遅延・変更アクションエリア -->
-              <div id="dailyDetailContainer" class="hidden p-3 bg-slate-50 rounded-lg border border-slate-300 text-xs space-y-2">
-                <div class="flex items-center justify-between font-bold text-slate-800">
-                  <span id="dailyDetailTitle">📅 当日の入出金・振替明細</span>
-                  <button id="btnCloseDailyDetail" class="text-slate-400 hover:text-slate-600">閉じる ✕</button>
-                </div>
-                <div id="dailyDetailItemsList" class="space-y-1.5"></div>
-              </div>
-
             </div>
 
-            <!-- キャッシュフロー3区分（営業CF・財務CF） -->
+            <!-- 2. 【最重要】今月支払いのまとまった合計内訳（大体いくらあるか？） -->
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+              <div class="flex items-center justify-between border-b pb-2 border-slate-100">
+                <div>
+                  <h4 class="text-sm font-bold text-slate-900 flex items-center space-x-1.5">
+                    <span>💳 今月の支払合計 内訳サマリー</span>
+                    <span class="text-xs font-normal text-slate-400">（大体いくらあるか一覧）</span>
+                  </h4>
+                </div>
+                <span id="badgeTotalExpenseSummary" class="text-xs font-black text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200">
+                  支払総額: ¥1,357,000
+                </span>
+              </div>
+
+              <!-- 内訳カードグリッド（スマホで超見やすいブロック配置） -->
+              <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 text-xs">
+                
+                <!-- 商品仕入 -->
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 hover:border-blue-300 transition">
+                  <div class="flex items-center justify-between text-slate-500 font-bold mb-1 text-[11px]">
+                    <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-rose-500 mr-1.5"></span>商品仕入</span>
+                    <span class="text-[10px] text-slate-400">墓石材・部材</span>
+                  </div>
+                  <div id="sumCogs" class="text-base sm:text-lg font-black text-slate-900">¥450,000</div>
+                  <div class="text-[10px] text-slate-400 mt-0.5">全体の約33%</div>
+                </div>
+
+                <!-- 洋外注費 -->
+                <div class="bg-amber-50/60 p-3 rounded-xl border border-amber-200 hover:border-amber-400 transition">
+                  <div class="flex items-center justify-between text-amber-900 font-bold mb-1 text-[11px]">
+                    <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-amber-500 mr-1.5"></span>洋外注費</span>
+                    <span class="text-[10px] text-amber-700">字彫・加工</span>
+                  </div>
+                  <div id="sumYoSubcontract" class="text-base sm:text-lg font-black text-amber-950">¥380,000</div>
+                  <div class="text-[10px] text-amber-700 mt-0.5">全体の約28%</div>
+                </div>
+
+                <!-- 借入返済 -->
+                <div class="bg-purple-50/60 p-3 rounded-xl border border-purple-200 hover:border-purple-400 transition">
+                  <div class="flex items-center justify-between text-purple-900 font-bold mb-1 text-[11px]">
+                    <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-purple-500 mr-1.5"></span>借入返済 (3本)</span>
+                    <span class="text-[10px] text-purple-700">公庫・信金</span>
+                  </div>
+                  <div id="sumLoanRepay" class="text-base sm:text-lg font-black text-purple-950">¥195,000</div>
+                  <div class="text-[10px] text-purple-700 mt-0.5">公庫11万 / 信金2本 8.5万</div>
+                </div>
+
+                <!-- 一般外注費 -->
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 hover:border-blue-300 transition">
+                  <div class="flex items-center justify-between text-slate-500 font-bold mb-1 text-[11px]">
+                    <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-blue-500 mr-1.5"></span>一般外注費</span>
+                    <span class="text-[10px] text-slate-400">施工・据付</span>
+                  </div>
+                  <div id="sumSubcontract" class="text-base sm:text-lg font-black text-slate-900">¥180,000</div>
+                  <div class="text-[10px] text-slate-400 mt-0.5">据付応援など</div>
+                </div>
+
+                <!-- 事業主消費（経費外・オレンジ枠） -->
+                <div class="bg-amber-100/40 p-3 rounded-xl border border-amber-300 hover:border-amber-500 transition">
+                  <div class="flex items-center justify-between text-amber-900 font-bold mb-1 text-[11px]">
+                    <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-amber-600 mr-1.5"></span>事業主消費</span>
+                    <span class="text-[10px] bg-amber-200 text-amber-900 px-1 rounded font-bold">経費外</span>
+                  </div>
+                  <div id="sumOwnerExpense" class="text-base sm:text-lg font-black text-amber-900">¥150,000</div>
+                  <div class="text-[10px] text-amber-800 mt-0.5">生活費・個人引出</div>
+                </div>
+
+                <!-- 一般経費 -->
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 hover:border-blue-300 transition">
+                  <div class="flex items-center justify-between text-slate-500 font-bold mb-1 text-[11px]">
+                    <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-slate-400 mr-1.5"></span>一般経費</span>
+                    <span class="text-[10px] text-slate-400">光熱・燃料・通信</span>
+                  </div>
+                  <div id="sumGenExpense" class="text-base sm:text-lg font-black text-slate-900">¥142,000</div>
+                  <div class="text-[10px] text-slate-400 mt-0.5">車両・リース・電気等</div>
+                </div>
+
+                <!-- 税金関連（経費外・オレンジ枠） -->
+                <div class="bg-amber-100/40 p-3 rounded-xl border border-amber-300 hover:border-amber-500 transition">
+                  <div class="flex items-center justify-between text-amber-900 font-bold mb-1 text-[11px]">
+                    <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-amber-600 mr-1.5"></span>税金（源泉・所得）</span>
+                    <span class="text-[10px] bg-amber-200 text-amber-900 px-1 rounded font-bold">経費外</span>
+                  </div>
+                  <div id="sumTax" class="text-base sm:text-lg font-black text-amber-900">¥35,000</div>
+                  <div class="text-[10px] text-amber-800 mt-0.5">税務署納付</div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- 3. 【スマホで見やすい】直近の「お金が動く日」スケジュールカード -->
             <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
               <div class="flex items-center justify-between border-b pb-2">
-                <h4 class="text-xs font-bold text-slate-700">💵 キャッシュフロー3区分分析（営業CF・財務CF・純増減）</h4>
-                <span class="text-[10px] text-slate-400">本業の現金創出力と借入返済</span>
+                <h4 class="text-sm font-bold text-slate-900 flex items-center space-x-1.5">
+                  <span>📅 直近の入金・支払予定（お金が動く日だけ表示）</span>
+                </h4>
+                <span class="text-[11px] text-slate-400">動かない日は省略</span>
               </div>
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
-                  <div class="text-[11px] font-bold text-emerald-800">Ⅰ. 営業活動によるCF (本業)</div>
-                  <div class="text-xl font-black text-emerald-900 mt-1" id="cfOperatingVal">¥0</div>
-                  <p class="text-[10px] text-emerald-700 mt-0.5">売上入金 − (仕入・外注・給与・経費)</p>
-                </div>
-                <div class="p-3 bg-purple-50 rounded-xl border border-purple-200">
-                  <div class="text-[11px] font-bold text-purple-800">Ⅱ. 財務活動によるCF (返済)</div>
-                  <div class="text-xl font-black text-purple-900 mt-1" id="cfFinancingVal">¥0</div>
-                  <p class="text-[10px] text-purple-700 mt-0.5">借入金元金の定期返済</p>
-                </div>
-                <div class="p-3 bg-blue-900 text-white rounded-xl shadow-sm">
-                  <div class="text-[11px] font-bold text-blue-200">Ⅲ. フリーキャッシュフロー (純増減)</div>
-                  <div class="text-xl font-black mt-1 text-white" id="cfNetVal">¥0</div>
-                  <div class="text-[10px] text-blue-200 mt-0.5" id="cfSafetyBadge">✅ 本業CFで返済を賄えています</div>
-                </div>
+              
+              <!-- スマホ用イベントカードリスト -->
+              <div id="cashflowEventsMobileList" class="space-y-2">
+                <!-- JSで動的にカードを生成 -->
               </div>
             </div>
 
-          </div>
+            <!-- 4. PC・詳細確認用：折りたたみ式「全日程スプレッドシート表」 -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <details class="group">
+                <summary class="flex items-center justify-between p-3.5 bg-slate-50 cursor-pointer font-bold text-xs text-slate-700 hover:bg-slate-100 transition select-none">
+                  <span class="flex items-center space-x-2">
+                    <span>📊 日別スプレッドシート表（150日分を一覧確認）</span>
+                    <span class="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-normal">PC・詳細用</span>
+                  </span>
+                  <span class="text-slate-400 text-xs group-open:rotate-180 transition">▼</span>
+                </summary>
+                
+                <div class="p-3 border-t border-slate-200 space-y-2">
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="text-[11px] text-slate-500">横スクロールで各列（洋外注費・仕入・事業主消費など）を確認できます</span>
+                    <a href="https://docs.google.com/spreadsheets/d/11bCt4mXclylQYrMAydtdVdgybNewbp5N-t0qpbTzNjU/edit" target="_blank" class="text-emerald-700 hover:underline font-bold text-xs">
+                      スプレッドシートを開く ↗
+                    </a>
+                  </div>
 
-          <!-- ======================================================== -->
-          <!-- サブ画面 3: 従来の残高推移・未入金・明細（既存ビュー） -->
+                  <div class="overflow-x-auto border border-slate-200 rounded-lg shadow-inner">
+                    <table id="dailyScheduleTable" class="w-full text-xs text-left border-collapse min-w-[700px]">
+                      <!-- JSで描画 -->
+                    </table>
+                  </div>
+                </div>
+              </details>
+            </div>
+
+          </div>・未入金・明細（既存ビュー） -->
           <!-- ======================================================== -->
           <div id="subtab-panel-overview" class="funds-subpanel hidden space-y-4">
 
